@@ -1,0 +1,39 @@
+{
+  "name": "devtask",
+  "owner": {
+    "name": "Kuroome",
+    "url": "https://github.com/KanoCifer"
+  },
+  "metadata": {
+    "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "devtask",
+      "source": "skills/devtask-plan",
+      "description": "Investigate a need and produce a well-specified dev-task. Use when the user says 我想做个..., 加个功能, 修个 bug, 记个任务.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Kuroome"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/KanoCifer/DevTaskMcp",
+      "category": "project-management",
+      "tags": ["task", "kanban", "spec", "agent"]
+    },
+    {
+      "name": "devtask-doit",
+      "source": "skills/devtask-doit",
+      "description": "Execute a dev-task end-to-end. Use when the user says 做 task-N, 执行任务, work on the next task. With no argument, claims the top frontier task.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Kuroome"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/KanoCifer/DevTaskMcp",
+      "category": "project-management",
+      "tags": ["task", "agent", "execute", "frontier"]
+    }
+  ]
+}
