@@ -1,95 +1,94 @@
-# Devtask MCP
+# DevTaskMcp
 
-Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.
+Agent 原生的 dev 任务看板 — 把需求调研成规格清晰的任务，端到端执行并验证验收条件。基于 Pocock 的 frontier 模式，含 spec/slug/dependency 字段和 scope 分类。
 
-Combines:
+## 技能列表
 
-- **MCP server** (`src/devtask_mcp/`) — wraps your kanocifer-chat dev-task API as 6 tools (`list_dev_tasks`, `get_dev_task`, `get_dev_task_by_slug`, `create_dev_task`, `update_dev_task`, `get_frontier_tasks`)
-- **Plugin** (`.claude-plugin/`) — single installable unit bundling the MCP server + 3 skills; MCP server auto-starts when the plugin is enabled
-- **devtask-plan skill** (`skills/devtask-plan/`) — investigate a need, interview for spec, create the task
-- **devtask-doit skill** (`skills/devtask-doit/`) — execute a task by slug or claim the frontier
-- **devtask-verify skill** (`skills/devtask-verify/`) — verify a task's acceptance criteria against real code and runtime behavior
+| 技能             | 用途                                                | 触发                                                     |
+| ---------------- | --------------------------------------------------- | -------------------------------------------------------- |
+| `devtask-plan`   | 调研需求、访谈式产出规格、创建任务                  | 用户说"我想做个…" / "加个功能" / "修个 bug"              |
+| `devtask-doit`   | 端到端执行任务，自检验收条件，verify 通过后标记完成 | 用户说"做 task-N" / "执行任务" / "work on the next task" |
+| `devtask-verify` | 对照实际代码和运行时行为独立验证验收条件            | 用户说"verify task-N" / "验收 task-N"                    |
 
-## Plugin Installation (recommended)
+## 安装
 
-The plugin packages the MCP server and all 3 skills into a single installable unit. Install from the marketplace or load it directly:
+### Claude Code Plugin（推荐）
+
+单 plugin 包含 MCP server + 3 个技能，一次安装即可：
 
 ```bash
-# Install from marketplace
+# 添加市场
+claude plugins marketplace add KanoCifer/DevTaskMcp
+
+# 安装插件
+claude plugins install devtask@devtask
+```
+
+安装后 3 个技能均自动可用，MCP server 自动启动，无需手动配置 `.mcp.json`。
+
+或在 Claude 对话框中交互完成：
+
+```
 /plugin marketplace add KanoCifer/DevTaskMcp
 /plugin install devtask@devtask
+```
 
-# Or load locally for development
+本地开发加载：
+
+```bash
 claude --plugin-dir /path/to/DevTaskMcp
 ```
 
-Once enabled, all 3 skills become available under the `devtask` namespace and the MCP server starts automatically — no manual `.mcp.json` or `~/.claude.json` configuration needed.
+默认通过 `uv run` 启动 server，自动解析依赖。如果机器上没有 `uv`，参考下方「无 uv」章节。
 
-By default the server launches via `uv run`, which resolves dependencies automatically. If you don't have `uv` installed, use one of the alternatives below before loading the plugin.
+### 手动安装（不用 plugin）
 
-### Prerequisites
+把技能目录链接到 Claude Code 的技能路径，并手动配置 MCP server：
 
 ```bash
-cp .env.example .env
-# Fill in DEVTASK_API_KEY (required) and DEVTASK_API_BASE (optional)
+# 1. 配置 MCP server（添加到 ~/.claude.json 或项目 .mcp.json）
+#    带 uv：
+#      "command": "uv",
+#      "args": ["run", "--directory", "/path/to/DevTaskMcp", "python", "-m", "devtask_mcp.server"]
+#    不带 uv：
+#      "command": "/path/to/DevTaskMcp/.venv/bin/python",
+#      "args": ["-m", "devtask_mcp.server"]
+
+# 2. 链接技能目录
+# 作为 user-level 技能（全局可用）
+ln -s /path/to/DevTaskMcp/skills/devtask-plan ~/.claude/skills/devtask-plan
+ln -s /path/to/DevTaskMcp/skills/devtask-doit ~/.claude/skills/devtask-doit
+ln -s /path/to/DevTaskMcp/skills/devtask-verify ~/.claude/skills/devtask-verify
+
+# 或作为 project-level 技能（放在项目 .claude/skills/ 下）
+mkdir -p .claude/skills
+ln -s /path/to/DevTaskMcp/skills/devtask-plan .claude/skills/devtask-plan
+ln -s /path/to/DevTaskMcp/skills/devtask-doit .claude/skills/devtask-doit
+ln -s /path/to/DevTaskMcp/skills/devtask-verify .claude/skills/devtask-verify
 ```
 
-`DEVTASK_API_KEY` is a Bearer <REDACTED> for the kanocifer-chat API. The server raises at startup if it is empty.
+注意：手动安装时技能不带有 `devtask:` 命名空间前缀。
 
-### Without uv
+### 无 uv
 
-Two options if `uv` is not available on your machine:
+如果机器上没有 `uv`，两种方式准备 Python 环境：
 
-**Option A — bootstrap a local venv (one-time setup):**
+**方式 A — 初始化脚本（推荐）：**
 
 ```bash
-scripts/setup.sh              # creates .venv and installs dependencies
-# or pick a specific interpreter:
+scripts/setup.sh              # 创建 .venv 并安装依赖
+# 或指定解释器：
 PYTHON=python3.11 scripts/setup.sh
 ```
 
-Then edit `.mcp.json` to point at the venv's python instead of `uv`:
-
-```json
-{
-  "mcpServers": {
-    "devtask": {
-      "command": "/path/to/DevTaskMcp/.venv/bin/python",
-      "args": ["-m", "devtask_mcp.server"]
-    }
-  }
-}
-```
-
-**Option B — manual pip install:**
+**方式 B — 手动 pip install：**
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-Then use the same `.mcp.json` as Option A ( pointing at `.venv/bin/python` ).
-
-## Manual Installation (without plugin)
-
-If you prefer to run the MCP server standalone and symlink skills individually (not recommended — skills lose their plugin namespace):
-
-### 1. MCP server
-
-Add to `~/.claude.json` or project `.mcp.json`. With `uv`:
-
-```json
-{
-  "mcpServers": {
-    "devtask": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/DevTaskMcp", "python", "-m", "devtask_mcp.server"]
-    }
-  }
-}
-```
-
-Without `uv` (use the venv python — see" Without uv" above):
+然后在 `.mcp.json` 中指向 `.venv/bin/python`：
 
 ```json
 {
@@ -102,90 +101,94 @@ Without `uv` (use the venv python — see" Without uv" above):
 }
 ```
 
-### 2. Environment
+## 配置
 
 ```bash
 cp .env.example .env
-# Fill in DEVTASK_API_KEY + DEVTASK_API_BASE
+# 填写 DEVTASK_API_KEY（必填）和 DEVTASK_API_BASE（可选）
 ```
 
-### 3. Skills
+`DEVTASK_API_KEY` 是 kanocifer-chat API 的 Bearer <REDACTED> 为空时 server 启动会报错。
 
-Skills are bundled with the plugin and need no separate installation when using the plugin. For manual use without the plugin, you can keep them in-project (auto-discovered from `skills/`) or symlink them globally — but note they won't have the `devtask:` namespace prefix:
+## 使用
 
-```bash
-ln -s /path/to/DevTaskMcp/skills/devtask-plan ~/.claude/skills/devtask-plan
-ln -s /path/to/DevTaskMcp/skills/devtask-doit ~/.claude/skills/devtask-doit
-ln -s /path/to/DevTaskMcp/skills/devtask-verify ~/.claude/skills/devtask-verify
-```
-
-## Usage
-
-Skills are namespaced under the plugin name:
+技能以 plugin 名命名空间：
 
 ```
-/devtask:devtask-plan                    # Investigate a need, create a task
-/devtask:devtask-doit                    # Execute the next frontier task
-/devtask:devtask-doit task-42             # Execute a specific task by slug
-/devtask:devtask-verify task-42           # Verify a task's acceptance criteria
+/devtask:devtask-plan                    # 调研需求，创建任务
+/devtask:devtask-doit                    # 领取 frontier 最前排任务执行
+/devtask:devtask-doit task-42            # 执行指定 slug 的任务
+/devtask:devtask-verify task-42          # 验证任务的验收条件
 ```
 
-### Typical Workflow
+## 工作流程
 
-1. `/devtask:devtask-plan` — describe what you want; the skill interviews you for a spec, then creates the task on the board.
-2. `/devtask:devtask-doit task-N` — implements the task end-to-end, self-checks each acceptance criterion, then runs `/devtask:devtask-verify task-N` as a final gate before marking it done.
-3. `/devtask:devtask-verify task-N` — independently re-checks every acceptance criterion against the actual code and runtime; reports pass/fail per criterion with evidence.
+```
+需求描述
+    │
+    ▼
+/devtask:devtask-plan
+    │  访谈式调研 → 产出规格 → 创建任务
+    ▼
+/devtask:devtask-doit [task-N]
+    │  端到端执行 → 自检验收条件 → /devtask:devtask-verify
+    ▼
+/devtask:devtask-verify [task-N]
+    │  独立验证验收条件（对照代码 + 运行时）
+    ▼
+标记已完成
+```
 
-## Task Model
+## 任务模型
 
-All text fields (`description`, `detail`, `acceptance_criteria`, `constraints`, `context_pointers`) support **Markdown formatting**.
+所有文本字段（`description`、`detail`、`acceptance_criteria`、`constraints`、`context_pointers`）支持 **Markdown 格式**。
 
-| Field                 | Required | Meaning                                                        | Markdown |
-| --------------------- | -------- | -------------------------------------------------------------- | -------- |
-| `slug`                | auto     | `task-ID`, human-readable, monotonically increasing            | —        |
-| `title`               | yes      | One-line summary, verb-first                                   | plain    |
-| `type`                | yes      | `问题` / `功能需求` / `优化` / `技术债`                         | —        |
-| `priority`            | yes      | `P0 紧急` / `P1 高` / `P2 中` / `P3 低`                        | —        |
-| `scope`               | yes      | `<层>-<技术>` free-form, e.g. `后端-Go`                         | —        |
-| `acceptance_criteria` | no       | Conditions for "done"; doit self-checks, verify re-checks     | list     |
-| `constraints`         | no       | Hard boundaries (files, tech stack, benchmarks)                | list/table |
-| `context_pointers`    | no       | Relevant code paths / docs / ADRs                              | code blocks |
-| `for_agent`           | yes      | Agent-claimable flag (default `true`)                          | —        |
-| `blocked_by`          | no       | Slug list of prerequisite tasks                               | —        |
+| 字段                  | 必填 | 含义                                    | Markdown    |
+| --------------------- | ---- | --------------------------------------- | ----------- |
+| `slug`                | 自动 | `task-ID`，人类可读，单调递增           | —           |
+| `title`               | 是   | 一行摘要，动词开头                      | plain       |
+| `type`                | 是   | `问题` / `功能需求` / `优化` / `技术债` | —           |
+| `priority`            | 是   | `P0 紧急` / `P1 高` / `P2 中` / `P3 低` | —           |
+| `scope`               | 是   | `<层>-<技术>` 自由格式，如 `后端-Go`    | —           |
+| `acceptance_criteria` | 否   | "完成"的条件；doit 自检，verify 复检    | list        |
+| `constraints`         | 否   | 硬性边界（文件、技术栈、基准）          | list/table  |
+| `context_pointers`    | 否   | 相关代码路径 / 文档 / ADR               | code blocks |
+| `for_agent`           | 是   | Agent 可认领标志（默认 `true`）         | —           |
+| `blocked_by`          | 否   | 前置任务的 slug 列表                    | —           |
 
-Enum values are the **Chinese literals** the Go backend expects — never use English keys.
+枚举值使用 Go 后端期望的**中文字面量**——不要使用英文键。
 
-## Structure
+## 目录结构
 
 ```
 DevTaskMcp/
 ├── .claude-plugin/
-│   ├── plugin.json              # Plugin manifest (metadata + mcp server ref)
-│   └── marketplace.json         # Marketplace listing (3 skills)
-├── .mcp.json                    # MCP server definition (auto-loaded by plugin)
+│   ├── plugin.json              # Plugin 清单（元数据 + MCP server 引用）
+│   └── marketplace.json         # 市场发布配置（3 个技能）
+├── .mcp.json                    # MCP server 定义（plugin 自动加载）
 ├── skills/
-│   ├── devtask-plan/SKILL.md    # Need → spec → create
-│   ├── devtask-doit/SKILL.md    # Execute end-to-end + verify gate
-│   └── devtask-verify/SKILL.md  # Read-only acceptance-criteria verification
-├── src/devtask_mcp/             # MCP server Python package
+│   ├── devtask-plan/SKILL.md    # 需求 → 规格 → 创建
+│   ├── devtask-doit/SKILL.md    # 端到端执行 + verify 门控
+│   └── devtask-verify/SKILL.md  # 只读验收条件验证
+├── src/devtask_mcp/             # MCP server Python 包
 │   ├── __init__.py
-│   ├── client.py                # HTTP client, envelope unwrapping
-│   ├── models.py                # Pydantic models + Chinese literal enums
-│   └── server.py                # FastMCP, 6 tool registrations (English schemas)
+│   ├── client.py                # HTTP client，信封剥离
+│   ├── models.py                # Pydantic 模型 + 中文枚举
+│   └── server.py                # FastMCP，6 个工具注册
 ├── pyproject.toml
 ├── CLAUDE.md
 └── README.md
 ```
 
-## Architecture Notes
+## 架构备注
 
-- **Envelope stripping at the boundary:** the Go backend wraps responses in `{code, message, data}`; `client._unwrap` strips it so MCP tools never waste tokens on wrapper fields.
-- **Errors propagate verbatim:** non-2xx or `code != 0` raises `DevTaskAPIError` and the message surfaces to the agent as-is.
-- **`per_page` capped at 20** regardless of caller input.
-- **HTTP timeout:** 15.0 s.
-- **Single long-lived client** at module level — safe because FastMCP stdio runs one server per agent session.
-- **Slug is the canonical human ID** — use `task-N` in all UI, conversation, and MCP tool references.
+- **边界剥离信封：** Go 后端用 `{code, message, data}` 包裹响应；`client._unwrap` 在边界剥离，MCP 工具不会浪费 token 在包装字段上。
+- **错误原样传播：** 非 2xx 或 `code != 0` 抛出 `DevTaskAPIError`，错误信息原样呈现给 agent。
+- **`per_page` 上限 20**，无论调用方传入多大值。
+- **HTTP 超时：** 15.0 秒。
+- **单例长连接 client** 在模块级别——安全，因为 FastMCP stdio 每个 agent session 只运行一个 server。
+- **Slug 是规范的人类 ID**——在所有 UI、对话和 MCP 工具引用中使用 `task-N`。
 
 ## License
 
-MIT
+[MIT](LICENSE)
