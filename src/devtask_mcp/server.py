@@ -22,7 +22,7 @@ from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from .client import DevTaskClient, DevTaskAPIError
+from .client import DevTaskAPIError, DevTaskClient
 from .models import TaskPriority, TaskScope, TaskStatus, TaskType
 
 logger = logging.getLogger("devtask-mcp")
@@ -118,8 +118,9 @@ async def get_dev_task(task_id: str) -> str:
 async def get_dev_task_by_slug(slug: str) -> str:
     """Fetch a single dev-task by its slug (task-1, task-2...).
 
-    Slug 是任务的人类可读短标识，比 ObjectID 更适合口头引用、看板 UI
-    和 MCP 对话。其余字段同 get_dev_task。
+    The slug is the human-readable short identifier for a task — prefer it
+    over ObjectId for conversation, kanban UI, and MCP tool references.
+    All other fields are identical to get_dev_task.
 
     Args:
         slug: The task slug, e.g. "task-42".
@@ -150,26 +151,36 @@ async def create_dev_task(
 ) -> str:
     """Create a new dev-task. New tasks start at status '待评估'.
 
-    返回体里包含 slug (如 "task-1")，后续对话 / 看板 UI / MCP tool 引用
-    该任务时直接用 slug，比 ObjectID 可读得多。
+    The response includes a slug (e.g. "task-1") — use it for all future
+    references instead of the ObjectId. It is more readable in conversation,
+    kanban UI, and MCP tool calls.
+
+    All text fields (description, detail, acceptance_criteria, constraints,
+    context_pointers) support **Markdown formatting**. Suggested usage:
+    acceptance_criteria as a Markdown list, constraints as a list or table,
+    context_pointers with paths wrapped in code blocks. title stays plain
+    text.
 
     Args:
-        title: Task title (required).
+        title: Task title (required). Plain text, no Markdown markup.
         task_type: One of '问题', '功能需求', '优化', '技术债'.
         priority: One of 'P0 紧急', 'P1 高', 'P2 中', 'P3 低'.
-        scope: Task scope in "<层>-<技术>" format (required).
+        scope: Task scope in "<scope>-<tech>" format (required).
             Examples: '前端-React', '后端-Go', 'AI-LangChain',
             'Docs-用户手册', '通用'. Free-form string — not a closed enum.
-        description: Short description (optional).
-        detail: Long-form detail (optional).
+        description: Short description (optional). Supports Markdown.
+        detail: Long-form detail (optional). Supports Markdown.
         due_date: ISO-8601 datetime string, e.g. '2026-09-01T00:00:00'.
             Pass whatever your JSON client gives; the backend parses RFC-3339.
         acceptance_criteria: Conditions that must be met for this task to be
             considered done. Agent uses these as a self-check before resolve.
+            **Use a Markdown list**.
         constraints: Hard boundaries — files not to touch, tech stack
             requirements, etc. Agent treats these as non-negotiable.
+            **Use a Markdown list or table**.
         context_pointers: Paths to relevant code / docs / ADRs, e.g.
             'internal/auth/, docs/adr/0003'. Saves agent a file-discovery pass.
+            **Wrap paths in code blocks**.
         for_agent: When True, mark this task as ready for agent execution.
             Default False (human task).
         blocked_by: List of task IDs that must be done before this one.
@@ -226,11 +237,15 @@ async def update_dev_task(
 ) -> str:
     """Partially update a dev-task. Omitted fields are left unchanged.
 
+    All text fields (description, detail, acceptance_criteria, constraints,
+    context_pointers) support **Markdown formatting** — conventions match
+    create_dev_task.
+
     Args:
         task_id: The task's ObjectId hex string or slug (task-N).
-        title: New title (optional).
-        description: New description (optional).
-        detail: New detail (optional).
+        title: New title (optional). Plain text.
+        description: New description (optional). Supports Markdown.
+        detail: New detail (optional). Supports Markdown.
         task_type: One of '问题', '功能需求', '优化', '技术债'.
         priority: One of 'P0 紧急', 'P1 高', 'P2 中', 'P3 低'.
         scope: Free-form "<层>-<技术>" string (see create_dev_task docs).
@@ -238,8 +253,11 @@ async def update_dev_task(
         sort_order: Integer sort key (optional).
         due_date: ISO-8601 datetime string.
         acceptance_criteria: Conditions for considering this task done.
+            **Use a Markdown list**.
         constraints: Hard boundaries (files / tech stack / etc).
+            **Use a Markdown list or table**.
         context_pointers: Paths to relevant code / docs / ADRs.
+            **Wrap paths in code blocks**.
         for_agent: Toggle agent-claimable flag.
         blocked_by: Replace the dependency list entirely. Pass [] to clear.
     """
