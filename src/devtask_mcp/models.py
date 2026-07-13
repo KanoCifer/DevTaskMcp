@@ -21,6 +21,7 @@ TaskPriority = Literal["P0 紧急", "P1 高", "P2 中", "P3 低"]
 # Scope 去 enum 化：仍是 str，Literal 仅作常见示例提示，不限制值。
 TaskScope = str
 TaskStatus = Literal["待评估", "待排期", "进行中", "已搁置", "已完成"]
+TaskKind = Literal["spec", "subtask"]
 
 # ---------------------------------------------------------------------------
 # Output models
@@ -53,6 +54,10 @@ class DevTaskOut(BaseModel):
     blocked_by: list[str] = []
     # Slug —— task-N 格式，人类可读引用
     slug: str = ""
+    # 角色：spec / subtask；parent 自身为 spec 时为空，兼容旧数据
+    kind: Optional[TaskKind] = None
+    # 子任务归属的 spec slug；spec 自身为 None
+    parent_slug: Optional[str] = None
 
 
 

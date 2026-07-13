@@ -115,6 +115,7 @@ class DevTaskClient:
         status: Optional[str] = None,
         priority: Optional[str] = None,
         task_type: Optional[str] = None,
+        kind: Optional[str] = None,
         for_agent: Optional[bool] = None,
         include_deleted: bool = False,
         page: int = 1,
@@ -132,6 +133,8 @@ class DevTaskClient:
             params["priority"] = priority
         if task_type:
             params["type"] = task_type
+        if kind:
+            params["kind"] = kind
         if for_agent is not None:
             params["for_agent"] = str(for_agent).lower()
 
@@ -139,11 +142,9 @@ class DevTaskClient:
 
     # ------------------------------------------------------------------- get
 
-    async def get_task(self, task_id: str) -> dict:
-        return await self._request("GET", f"/dev-tasks/{task_id}")
-
     async def get_task_by_slug(self, slug: str) -> dict:
-        return await self._request("GET", f"/dev-tasks/by-slug/{slug}")
+        """GET /dev-tasks/:slug —— 后端已 slug 化，不再接受 ObjectID。"""
+        return await self._request("GET", f"/dev-tasks/{slug}")
 
     # ----------------------------------------------------------------- create
 
@@ -152,8 +153,8 @@ class DevTaskClient:
 
     # ----------------------------------------------------------------- update
 
-    async def update_task(self, task_id: str, body: dict) -> dict:
-        return await self._request("PATCH", f"/dev-tasks/{task_id}", json=body)
+    async def update_task(self, slug: str, body: dict) -> dict:
+        return await self._request("PATCH", f"/dev-tasks/{slug}", json=body)
 
     # --------------------------------------------------------------- frontier
 
@@ -171,20 +172,22 @@ class DevTaskClient:
     # --------------------------------------------------------------- children
 
     async def find_children(self, parent_slug: str) -> list:
-        """Return all tasks whose blocked_by contains parent_slug.
+        """Return all subtasks whose parent_slug == 给定 spec slug.
 
-        Paginates through list_dev_tasks(for_agent=true) and filters
-        client-side. Returns the full task objects so callers don't need
-        a second get_dev_task_by_slug round-trip.
+        走后端 parent_slug 索引查询，不再全表扫描 blocked_by。
+        blocked_by 现在只承载同层前置依赖（执行顺序），子→父结构归属
+        由 parent_slug 字段承载——因此这里只需按 parent_slug 精确过滤。
+
+        Paginates internally; returns the full task objects so callers don't
+        need a second get_dev_task_by_slug round-trip.
         """
         children: list = []
         page = 1
         while True:
-            data = await self.list_tasks(for_agent=True, page=page, per_page=MAX_PER_PAGE)
+            data = await self.list_tasks(page=page, per_page=MAX_PER_PAGE)
             tasks = data.get("tasks", []) if isinstance(data, dict) else []
             for task in tasks:
-                blocked_by = task.get("blocked_by", [])
-                if isinstance(blocked_by, list) and parent_slug in blocked_by:
+                if task.get("parent_slug") == parent_slug:
                     children.append(task)
             pagination = data.get("pagination", {}) if isinstance(data, dict) else {}
             if not pagination.get("has_next", False):

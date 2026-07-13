@@ -2,12 +2,14 @@
 
 Tools
 -----
-- list_dev_tasks   — GET  /dev-tasks   (filter + paginate, per_page cap 20)
-- get_dev_task     — GET  /dev-tasks/:id
-- get_dev_task_by_slug — GET  /dev-tasks/by-slug/:slug
-- create_dev_task  — POST /dev-tasks
-- update_dev_task  — PATCH /dev-tasks/:id
-- get_frontier_tasks — GET  /dev-tasks/frontier
+- list_dev_tasks      — GET  /dev-tasks   (filter + paginate, per_page cap 20)
+- get_dev_task_by_slug — GET  /dev-tasks/:slug
+- create_dev_task     — POST /dev-tasks
+- update_dev_task     — PATCH /dev-tasks/:slug
+- get_frontier_tasks  — GET  /dev-tasks/frontier
+- list_children       — GET  /dev-tasks (parent_slug filter)
+
+后端已 slug 化：所有交互通过 task-N，不再接受 ObjectID。
 
 Run with:  uv run python -m devtask_mcp.server
 """
@@ -25,7 +27,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from .client import DevTaskAPIError, DevTaskClient, DevTaskError
-from .models import TaskPriority, TaskScope, TaskStatus, TaskType
+from .models import TaskKind, TaskPriority, TaskScope, TaskStatus, TaskType
 
 logger = logging.getLogger("devtask-mcp")
 
@@ -91,6 +93,7 @@ async def list_dev_tasks(
     status: Optional[TaskStatus] = None,
     priority: Optional[TaskPriority] = None,
     task_type: Optional[TaskType] = None,
+    kind: Optional[TaskKind] = None,
     for_agent: Optional[bool] = None,
     include_deleted: bool = False,
     page: int = 1,
@@ -105,6 +108,8 @@ async def list_dev_tasks(
             One of: 'P0 紧急', 'P1 高', 'P2 中', 'P3 低'.
         task_type: Filter by kind.
             One of: '问题', '功能需求', '优化', '技术债'.
+        kind: Filter by role. One of: 'spec', 'subtask'.
+            None = no filter.
         for_agent: When True, return only tasks ready for agent execution.
             When False, return only tasks for human. None = no filter.
         include_deleted: When True, soft-deleted tasks are also returned.
@@ -115,6 +120,7 @@ async def list_dev_tasks(
         status=status,
         priority=priority,
         task_type=task_type,
+        kind=kind,
         for_agent=for_agent,
         include_deleted=include_deleted,
         page=page,
@@ -124,27 +130,8 @@ async def list_dev_tasks(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: get_dev_task
+# Tool: get_dev_task_by_slug
 # -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_handle_errors
-async def get_dev_task(task_id: str) -> str:
-    """Fetch a single dev-task by its ObjectID.
-
-    The response includes spec fields (acceptance_criteria, constraints,
-    context_pointers), dependency info (for_agent, blocked_by), and slug.
-    Read them before starting work. context_pointers short-circuits file
-    discovery by telling you exactly which paths are relevant. Use the slug
-    for all human-facing references (e.g. "work on task-42").
-
-    Args:
-        task_id: The task's ObjectId hex string (24 hex chars).
-            Use get_dev_task_by_slug if you have a slug like "task-42".
-    """
-    raw = await client.get_task(task_id)
-    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
 @mcp.tool()
@@ -152,9 +139,15 @@ async def get_dev_task(task_id: str) -> str:
 async def get_dev_task_by_slug(slug: str) -> str:
     """Fetch a single dev-task by its slug (task-1, task-2...).
 
-    The slug is the human-readable short identifier for a task — prefer it
-    over ObjectId for conversation, kanban UI, and MCP tool references.
-    All other fields are identical to get_dev_task.
+    The slug is the unique, human-readable identifier for a task — use it
+    for all conversation, kanban UI, and MCP tool references. 后端已
+    slug 化，不再接受 ObjectID。
+
+    The response includes spec fields (acceptance_criteria, constraints,
+    context_pointers), dependency info (for_agent, blocked_by), role
+    (kind), parent link (parent_slug), and slug. Read them before starting
+    work. context_pointers short-circuits file discovery by telling you
+    exactly which paths are relevant.
 
     Args:
         slug: The task slug, e.g. "task-42".
@@ -183,12 +176,14 @@ async def create_dev_task(
     context_pointers: Optional[str] = None,
     for_agent: bool = False,
     blocked_by: Optional[list[str]] = None,
+    kind: Optional[TaskKind] = None,
+    parent_slug: Optional[str] = None,
 ) -> str:
     """Create a new dev-task. New tasks start at status '待评估'.
 
     The response includes a slug (e.g. "task-1") — use it for all future
-    references instead of the ObjectId. It is more readable in conversation,
-    kanban UI, and MCP tool calls.
+    references. It is more readable in conversation, kanban UI, and MCP
+    tool calls.
 
     All text fields (description, detail, acceptance_criteria, constraints,
     context_pointers) support **Markdown formatting**. Suggested usage:
@@ -218,8 +213,14 @@ async def create_dev_task(
             **Wrap paths in code blocks**.
         for_agent: When True, mark this task as ready for agent execution.
             Default False (human task).
-        blocked_by: List of task IDs that must be done before this one.
-            Pass [] when no dependencies.
+        blocked_by: List of same-level task slugs that must be done before
+            this one (execution-order precedence). Pass [] when no
+            dependencies. 注意：不再用于指向 parent——子→父的结构归属
+            用 parent_slug 承载。
+        kind: Task role. 'spec' = 规划节点（for_agent 通常为 false），
+            'subtask' = 可执行子任务。None 时后端默认 spec。
+        parent_slug: 子任务归属的 spec slug（如 "task-5"）。spec 自身
+            留 None。设置后 list_children(parent_slug) 直接索引返回子任务。
     """
     body: dict[str, Any] = {
         "title": title,
@@ -242,6 +243,10 @@ async def create_dev_task(
         body["context_pointers"] = context_pointers
     if blocked_by is not None:
         body["blocked_by"] = blocked_by
+    if kind is not None:
+        body["kind"] = kind
+    if parent_slug is not None:
+        body["parent_slug"] = parent_slug
 
     raw = await client.create_task(body)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
@@ -255,7 +260,7 @@ async def create_dev_task(
 @mcp.tool()
 @_handle_errors
 async def update_dev_task(
-    task_id: str,
+    slug: str,
     title: Optional[str] = None,
     description: Optional[str] = None,
     detail: Optional[str] = None,
@@ -270,6 +275,8 @@ async def update_dev_task(
     context_pointers: Optional[str] = None,
     for_agent: Optional[bool] = None,
     blocked_by: Optional[list[str]] = None,
+    kind: Optional[TaskKind] = None,
+    parent_slug: Optional[str] = None,
 ) -> str:
     """Partially update a dev-task. Omitted fields are left unchanged.
 
@@ -278,7 +285,7 @@ async def update_dev_task(
     create_dev_task.
 
     Args:
-        task_id: The task's ObjectId hex string or slug (task-N).
+        slug: The task slug, e.g. "task-42".
         title: New title (optional). Plain text.
         description: New description (optional). Supports Markdown.
         detail: New detail (optional). Supports Markdown.
@@ -295,7 +302,14 @@ async def update_dev_task(
         context_pointers: Paths to relevant code / docs / ADRs.
             **Wrap paths in code blocks**.
         for_agent: Toggle agent-claimable flag.
-        blocked_by: Replace the dependency list entirely. Pass [] to clear.
+        blocked_by: Replace same-level dependency list entirely. Pass [] to
+            clear. 注意：不再用于指向 parent——子→父结构归属用
+            parent_slug 承载。
+        kind: Update task role ('spec' / 'subtask').
+        parent_slug: Update parent spec slug; None leaves it unchanged.
+            Note: the backend DTO treats null as "no-op" rather than "clear",
+            so this param cannot detach a child from its parent — only
+            re-parent it to a different spec slug.
     """
     body: dict[str, Any] = {}
     if title is not None:
@@ -326,8 +340,12 @@ async def update_dev_task(
         body["for_agent"] = for_agent
     if blocked_by is not None:
         body["blocked_by"] = blocked_by
+    if kind is not None:
+        body["kind"] = kind
+    if parent_slug is not None:
+        body["parent_slug"] = parent_slug
 
-    raw = await client.update_task(task_id, body)
+    raw = await client.update_task(slug, body)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
@@ -343,11 +361,11 @@ async def get_frontier_tasks(limit: int = 10) -> str:
 
     Frontier = tasks that are:
     - marked for_agent=true
+    - 角色为 subtask（kind == "subtask"，即可执行单元）
     - in status '待排期' (backlog)
-    - have no unfinished *dependency* blockers — parent links (blocked_by
-      containing a slug whose task has for_agent=false) are ignored;
-      only genuine precedence blockers (blocked_by containing a slug whose
-      task has for_agent=true) count as blocking
+    - have no unfinished dependency blockers —— blocked_by 现在只含
+      同层前置依赖（执行顺序），不再指向 parent，因此不需要 hack 跳过
+      "for_agent=false 的 blocked_by"
     - not soft-deleted
 
     Ordered by sort_order ASC, then created_at DESC. Use this as your first
@@ -369,10 +387,11 @@ async def get_frontier_tasks(limit: int = 10) -> str:
 @mcp.tool()
 @_handle_errors
 async def list_children(parent_slug: str) -> str:
-    """Return all child tasks of a parent task.
+    """Return all child tasks of a parent (spec) task.
 
-    Finds every for_agent=true task whose blocked_by contains the given
-    parent slug. Handles pagination internally — no client-side loop needed.
+    走后端 parent_slug 索引查询，直接返回所有 parent_slug == 给定
+    slug 的子任务（kind == "subtask"）。不再解析 blocked_by。
+    Handles pagination internally — no client-side loop needed.
     Returns the full task objects (including acceptance_criteria,
     context_pointers, etc.) so callers never need a follow-up
     get_dev_task_by_slug per child.
@@ -381,7 +400,7 @@ async def list_children(parent_slug: str) -> str:
     next task to execute, aggregating sibling completion, or recursive verify.
 
     Args:
-        parent_slug: The parent task slug, e.g. "task-42".
+        parent_slug: The parent (spec) task slug, e.g. "task-42".
     """
     raw = await client.find_children(parent_slug)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)

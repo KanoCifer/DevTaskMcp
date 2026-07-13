@@ -150,13 +150,17 @@ cp .env.example .env
 | `type`                | 是   | `问题` / `功能需求` / `优化` / `技术债` | —           |
 | `priority`            | 是   | `P0 紧急` / `P1 高` / `P2 中` / `P3 低` | —           |
 | `scope`               | 是   | `<层>-<技术>` 自由格式，如 `后端-Go`    | —           |
+| `kind`                | 否   | `spec`（规划节点）/ `subtask`（可执行） | —           |
+| `parent_slug`         | 否   | 子任务归属的 spec slug；spec 自身留空   | —           |
 | `acceptance_criteria` | 否   | "完成"的条件；doit 自检，verify 复检    | list        |
 | `constraints`         | 否   | 硬性边界（文件、技术栈、基准）          | list/table  |
 | `context_pointers`    | 否   | 相关代码路径 / 文档 / ADR               | code blocks |
 | `for_agent`           | 是   | Agent 可认领标志（默认 `true`）         | —           |
-| `blocked_by`          | 否   | 前置任务的 slug 列表                    | —           |
+| `blocked_by`          | 否   | 同层前置依赖的 slug 列表（执行顺序）    | —           |
 
 枚举值使用 Go 后端期望的**中文字面量**——不要使用英文键。
+
+**字段语义分离：** `parent_slug` 承载子→父的结构归属（`list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。两者不再混用。
 
 ## 目录结构
 
@@ -174,7 +178,7 @@ DevTaskMcp/
 │   ├── __init__.py
 │   ├── client.py                # HTTP client，信封剥离
 │   ├── models.py                # Pydantic 模型 + 中文枚举
-│   └── server.py                # FastMCP，6 个工具注册
+│   └── server.py                # FastMCP，6 个工具注册（已 slug 化）
 ├── pyproject.toml
 ├── CLAUDE.md
 └── README.md
@@ -187,7 +191,8 @@ DevTaskMcp/
 - **`per_page` 上限 20**，无论调用方传入多大值。
 - **HTTP 超时：** 15.0 秒。
 - **单例长连接 client** 在模块级别——安全，因为 FastMCP stdio 每个 agent session 只运行一个 server。
-- **Slug 是规范的人类 ID**——在所有 UI、对话和 MCP 工具引用中使用 `task-N`。
+- **Slug 是规范的人类 ID**——在所有 UI、对话和 MCP 工具引用中使用 `task-N`。后端已全面 slug 化，不再接受 ObjectID 输入。
+- **`kind` / `parent_slug` 语义分离：** `parent_slug` 承载子→父的结构归属（`list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。
 
 ## License
 
