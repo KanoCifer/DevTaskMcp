@@ -6,47 +6,26 @@
   },
   "metadata": {
     "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "plugins": [
     {
-      "name": "devtask-plan",
-      "source": "skills/devtask-plan",
-      "description": "Investigate a need and produce a well-specified dev-task. Use when the user says 我想做个..., 加个功能, 修个 bug, 记个任务.",
-      "version": "1.0.0",
+      "name": "devtask",
+      "source": "./",
+      "description": "Agent-native dev task board with 3 skills: devtask-plan (investigate needs into well-specified tasks), devtask-doit (execute tasks end-to-end), devtask-verify (verify acceptance criteria against real code).",
+      "version": "1.0.1",
       "author": {
         "name": "Kuroome"
       },
       "license": "MIT",
       "homepage": "https://github.com/KanoCifer/DevTaskMcp",
       "category": "project-management",
-      "tags": ["task", "kanban", "spec", "agent"]
-    },
-    {
-      "name": "devtask-doit",
-      "source": "skills/devtask-doit",
-      "description": "Execute a dev-task end-to-end. Use when the user says 做 task-N, 执行任务, work on the next task. With no argument, claims the top frontier task.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Kuroome"
-      },
-      "license": "MIT",
-      "homepage": "https://github.com/KanoCifer/DevTaskMcp",
-      "category": "project-management",
-      "tags": ["task", "agent", "execute", "frontier"]
-    },
-    {
-      "name": "devtask-verify",
-      "source": "skills/devtask-verify",
-      "description": "对照实际代码和运行时行为验证 dev-task 的验收条件。当用户说 verify task-N, check task-42, 验收 task-N 时使用。",
-      "version": "1.0.0",
-      "author": {
-        "name": "Kuroome"
-      },
-      "license": "MIT",
-      "homepage": "https://github.com/KanoCifer/DevTaskMcp",
-      "category": "project-management",
-      "tags": ["task", "verify", "acceptance-criteria", "agent"]
+      "tags": ["task", "kanban", "spec", "agent", "mcp", "frontier"],
+      "skills": [
+        "./skills/devtask-plan",
+        "./skills/devtask-doit",
+        "./skills/devtask-verify"
+      ]
     }
   ]
 }

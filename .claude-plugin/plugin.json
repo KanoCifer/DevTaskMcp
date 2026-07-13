@@ -1,6 +1,6 @@
 {
   "name": "devtask",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
   "author": {
     "name": "Kuroome",
@@ -10,5 +10,10 @@
   "repository": "https://github.com/KanoCifer/DevTaskMcp",
   "license": "MIT",
   "keywords": ["task", "kanban", "spec", "agent", "mcp", "frontier"],
+  "skills": [
+    "./skills/devtask-plan",
+    "./skills/devtask-doit",
+    "./skills/devtask-verify"
+  ],
   "mcpServers": "./.mcp.json"
 }

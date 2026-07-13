@@ -5,21 +5,25 @@ Agent-native dev task board — investigate needs into well-specified tasks, exe
 Combines:
 
 - **MCP server** (`src/devtask_mcp/`) — wraps your kanocifer-chat dev-task API as 6 tools (`list_dev_tasks`, `get_dev_task`, `get_dev_task_by_slug`, `create_dev_task`, `update_dev_task`, `get_frontier_tasks`)
-- **Plugin** (`.claude-plugin/`) — bundles the MCP server + 3 skills into a single installable unit; MCP server auto-starts when the plugin is enabled
-- **devtask-plan skill** — investigate a need, interview for spec, create the task
-- **devtask-doit skill** — execute a task by slug or claim the frontier
-- **devtask-verify skill** — verify a task's acceptance criteria against real code and runtime behavior
+- **Plugin** (`.claude-plugin/`) — single installable unit bundling the MCP server + 3 skills; MCP server auto-starts when the plugin is enabled
+- **devtask-plan skill** (`skills/devtask-plan/`) — investigate a need, interview for spec, create the task
+- **devtask-doit skill** (`skills/devtask-doit/`) — execute a task by slug or claim the frontier
+- **devtask-verify skill** (`skills/devtask-verify/`) — verify a task's acceptance criteria against real code and runtime behavior
 
 ## Plugin Installation (recommended)
 
-The plugin packages the MCP server and skills together. Enable it via your Claude Code plugin manager, or load it directly:
+The plugin packages the MCP server and all 3 skills into a single installable unit. Install from the marketplace or load it directly:
 
 ```bash
-# Load from local directory
+# Install from marketplace
+/plugin marketplace add KanoCifer/DevTaskMcp
+/plugin install devtask@devtask
+
+# Or load locally for development
 claude --plugin-dir /path/to/DevTaskMcp
 ```
 
-Once enabled, the `devtask` MCP server starts automatically — no manual `.mcp.json` or `~/.claude.json` configuration needed.
+Once enabled, all 3 skills become available under the `devtask` namespace and the MCP server starts automatically — no manual `.mcp.json` or `~/.claude.json` configuration needed.
 
 By default the server launches via `uv run`, which resolves dependencies automatically. If you don't have `uv` installed, use one of the alternatives below before loading the plugin.
 
@@ -68,7 +72,7 @@ Then use the same `.mcp.json` as Option A ( pointing at `.venv/bin/python` ).
 
 ## Manual Installation (without plugin)
 
-If you prefer to run the MCP server standalone and load skills individually:
+If you prefer to run the MCP server standalone and symlink skills individually (not recommended — skills lose their plugin namespace):
 
 ### 1. MCP server
 
@@ -107,7 +111,7 @@ cp .env.example .env
 
 ### 3. Skills
 
-Skills live in `skills/` at the repo root and load automatically when you work in-project. For global use, symlink them:
+Skills are bundled with the plugin and need no separate installation when using the plugin. For manual use without the plugin, you can keep them in-project (auto-discovered from `skills/`) or symlink them globally — but note they won't have the `devtask:` namespace prefix:
 
 ```bash
 ln -s /path/to/DevTaskMcp/skills/devtask-plan ~/.claude/skills/devtask-plan
@@ -117,18 +121,20 @@ ln -s /path/to/DevTaskMcp/skills/devtask-verify ~/.claude/skills/devtask-verify
 
 ## Usage
 
+Skills are namespaced under the plugin name:
+
 ```
-/devtask-plan                            # Investigate a need, create a task
-/devtask-doit                            # Execute the next frontier task
-/devtask-doit task-42                     # Execute a specific task by slug
-/devtask-verify task-42                   # Verify a task's acceptance criteria
+/devtask:devtask-plan                    # Investigate a need, create a task
+/devtask:devtask-doit                    # Execute the next frontier task
+/devtask:devtask-doit task-42             # Execute a specific task by slug
+/devtask:devtask-verify task-42           # Verify a task's acceptance criteria
 ```
 
 ### Typical Workflow
 
-1. `/devtask-plan` — describe what you want; the skill interviews you for a spec, then creates the task on the board.
-2. `/devtask-doit task-N` — implements the task end-to-end, self-checks each acceptance criterion, then runs `/devtask-verify task-N` as a final gate before marking it done.
-3. `/devtask-verify task-N` — independently re-checks every acceptance criterion against the actual code and runtime; reports pass/fail per criterion with evidence.
+1. `/devtask:devtask-plan` — describe what you want; the skill interviews you for a spec, then creates the task on the board.
+2. `/devtask:devtask-doit task-N` — implements the task end-to-end, self-checks each acceptance criterion, then runs `/devtask:devtask-verify task-N` as a final gate before marking it done.
+3. `/devtask:devtask-verify task-N` — independently re-checks every acceptance criterion against the actual code and runtime; reports pass/fail per criterion with evidence.
 
 ## Task Model
 
