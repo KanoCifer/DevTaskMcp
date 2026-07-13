@@ -18,11 +18,13 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from functools import wraps
+from typing import Any, Callable, Optional
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
-from .client import DevTaskAPIError, DevTaskClient
+from .client import DevTaskAPIError, DevTaskClient, DevTaskError
 from .models import TaskPriority, TaskScope, TaskStatus, TaskType
 
 logger = logging.getLogger("devtask-mcp")
@@ -31,7 +33,7 @@ logger = logging.getLogger("devtask-mcp")
 # Server
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP("devtask")
+mcp = FastMCP("devtask", mask_error_details=True)
 
 # Module-level client — FastMCP stdio runs one server per agent session so a
 # single long-lived client is fine.
@@ -49,12 +51,42 @@ def _to_jsonable(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+
+def _handle_errors(func: Callable) -> Callable:
+    """Catch DevTask* errors → ToolError (shown to agent);
+    catch everything else → mask + log."""
+
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return await func(*args, **kwargs)
+        except ToolError:
+            # Already a ToolError — pass through untouched.
+            raise
+        except DevTaskAPIError as exc:
+            logger.error("工具 %s API 错误 [%s]: %s", func.__name__, exc.status, exc.message)
+            raise ToolError(f"API 错误（HTTP {exc.status}）：{exc.message}") from exc
+        except DevTaskError as exc:
+            logger.error("工具 %s 配置错误: %s", func.__name__, exc)
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            logger.exception("工具 %s 发生未预期错误", func.__name__)
+            raise ToolError("服务器内部错误，请查看日志") from exc
+
+    return wrapper
+
+
 # -------------------------------------------------------------------------- #
 # Tool: list_dev_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
+@_handle_errors
 async def list_dev_tasks(
     status: Optional[TaskStatus] = None,
     priority: Optional[TaskPriority] = None,
@@ -97,6 +129,7 @@ async def list_dev_tasks(
 
 
 @mcp.tool()
+@_handle_errors
 async def get_dev_task(task_id: str) -> str:
     """Fetch a single dev-task by its ObjectID.
 
@@ -115,6 +148,7 @@ async def get_dev_task(task_id: str) -> str:
 
 
 @mcp.tool()
+@_handle_errors
 async def get_dev_task_by_slug(slug: str) -> str:
     """Fetch a single dev-task by its slug (task-1, task-2...).
 
@@ -135,6 +169,7 @@ async def get_dev_task_by_slug(slug: str) -> str:
 
 
 @mcp.tool()
+@_handle_errors
 async def create_dev_task(
     title: str,
     task_type: TaskType,
@@ -218,6 +253,7 @@ async def create_dev_task(
 
 
 @mcp.tool()
+@_handle_errors
 async def update_dev_task(
     task_id: str,
     title: Optional[str] = None,
@@ -301,13 +337,17 @@ async def update_dev_task(
 
 
 @mcp.tool()
+@_handle_errors
 async def get_frontier_tasks(limit: int = 10) -> str:
     """Return tasks the agent can claim next — Pocock's frontier.
 
     Frontier = tasks that are:
     - marked for_agent=true
     - in status '待排期' (backlog)
-    - have no unfinished blockers (blocked_by is empty)
+    - have no unfinished *dependency* blockers — parent links (blocked_by
+      containing a slug whose task has for_agent=false) are ignored;
+      only genuine precedence blockers (blocked_by containing a slug whose
+      task has for_agent=true) count as blocking
     - not soft-deleted
 
     Ordered by sort_order ASC, then created_at DESC. Use this as your first
@@ -318,6 +358,32 @@ async def get_frontier_tasks(limit: int = 10) -> str:
         limit: Max tasks to return (default 10).
     """
     raw = await client.find_frontier(limit=limit)
+    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
+
+
+# -------------------------------------------------------------------------- #
+# Tool: list_children
+# -------------------------------------------------------------------------- #
+
+
+@mcp.tool()
+@_handle_errors
+async def list_children(parent_slug: str) -> str:
+    """Return all child tasks of a parent task.
+
+    Finds every for_agent=true task whose blocked_by contains the given
+    parent slug. Handles pagination internally — no client-side loop needed.
+    Returns the full task objects (including acceptance_criteria,
+    context_pointers, etc.) so callers never need a follow-up
+    get_dev_task_by_slug per child.
+
+    Use this in skills wherever you need a parent's children: finding the
+    next task to execute, aggregating sibling completion, or recursive verify.
+
+    Args:
+        parent_slug: The parent task slug, e.g. "task-42".
+    """
+    raw = await client.find_children(parent_slug)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
