@@ -24,7 +24,8 @@
       "skills": [
         "./skills/devtask-plan",
         "./skills/devtask-doit",
-        "./skills/devtask-verify"
+        "./skills/devtask-verify",
+        "./skills/devtask-simple"
       ]
     }
   ]
