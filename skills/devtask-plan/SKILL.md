@@ -1,6 +1,7 @@
 ---
 name: devtask-plan
 description: "调研需求形成 spec，再拆解为多个可执行的具体 task。当用户抛出一个应被跟踪的需求/功能/想法时使用——先明确做什么、怎么做，再落库为可执行的 task 单元。"
+argument-hint: [What do you want to plan?]
 ---
 
 # devtask-plan
@@ -16,14 +17,6 @@ description: "调研需求形成 spec，再拆解为多个可执行的具体 tas
 - Evidence: 当前代码状态、项目 CLAUDE.md、已有任务列表（去重）、用户的明确决策。
 - Output: parent spec slug + 每个 task 的 slug/title/acceptance_criteria，以及后续动作提示。
 
-## Durable Context Preflight
-
-在探索代码之前，先扫一遍持久化上下文：
-
-- 项目 `CLAUDE.md` / `AGENTS.md` / `.claude/rules/*.md` / `.docs/rules/*.md` 中的硬性规则——如果 proposed task 与之矛盾，立即暴露矛盾并暂停。
-- 用 `list_dev_tasks` 检查是否有重复或高度相似的任务已存在。发现重复时先展示已有任务，问用户是补充还是新建。
-- 项目中的 ADR / design doc / issue thread——如果问题已被决策过，引用已有结论而非重新拷问。
-
 ## 流程概览
 
 ```
@@ -36,11 +29,11 @@ description: "调研需求形成 spec，再拆解为多个可执行的具体 tas
 
 ### 步骤 1：探索 — 从代码里捞事实
 
-拿到用户的原始意图后，**先探索代码，把能确认的事实全部捞出来**。不要急着问用户——能从代码里找到的答案就别问。
+拿到用户的原始意图后，**先探索代码，把能确认的事实全部捞出来**，使用Explore subagent或自行探索。不要急着问用户——能从代码里找到的答案就别问。
 
 探索路径：
 
-- 用户说 XXX 模块 → `codegraph_explore` / grep / Read 定位 `XXX` 相关文件和调用链
+- 用户说 XXX 模块 → `codegraph_explore`（如有） / grep / Read 定位 `XXX` 相关文件和调用链
 - 用户说"接 XXX 功能" → 找对应 endpoint / handler / service
 - 用户说 bug → 搜索相关 error log / 代码路径 / 最近改动
 - 用户提了一个模糊目标 → 跑一遍相关模块，搞清楚现有结构和边界
@@ -74,7 +67,7 @@ description: "调研需求形成 spec，再拆解为多个可执行的具体 tas
 | 5. 脆弱假设   | 方案依赖什么前提？前提不成立怎么办？                                            | `constraints` 草稿         |
 | 6. 约束红线   | 禁动文件、禁用技术、不可回退的 benchmark                                        | `constraints` 确认         |
 
-**拷问原则（沿用 `/grilling` 原语）：**
+**拷问原则：**
 
 - **一次一问，等待回答后再出下一个。** 不要抛问卷——依赖链上一题的答案决定下一题问什么。
 - **每个问题附带 agent 的推荐答案 + 理由。** 事实是你的，决策是用户的。
@@ -149,19 +142,21 @@ description: "调研需求形成 spec，再拆解为多个可执行的具体 tas
 - 选了"其他"时，`AskUserQuestion` 返回后追加简短追问获取具体值
 - `scope` 和 `for_agent` 通过 2a 方案讨论确定，默认 `<层>-<技术>` + `for_agent: true`，不单独提问
 
-**Parent Spec 字段模板（对应 `DevTaskOut` 模型）：**
+**Parent Spec 字段模板：**
 
-| 字段                  | 是否必填 | 来源                                                 |
-| --------------------- | -------- | ---------------------------------------------------- |
-| `title`               | ✅       | AskUserQuestion Title                                |
-| `type`                | ✅       | AskUserQuestion Type                                 |
-| `priority`            | ✅       | AskUserQuestion Priority                             |
-| `acceptance_criteria` | ✅       | 2a 讨论产出（整体验收条件），用户确认                |
-| `constraints`         | 可选     | 2a 讨论产出（脆弱假设 / 红线）                       |
-| `context_pointers`    | 可选     | 步骤 1 检索到的代码路径 + 2a 补充的文档 / ADR        |
-| `scope`               | ✅       | 2a 讨论产出（`<层>-<技术>` 格式）                    |
-| `for_agent`           | ✅       | 步骤 3 始终设 `true`；步骤 4d 确认拆分后才改 `false` |
-| `blocked_by`          | 可选     | AskUserQuestion Deps                                 |
+| 字段                  | 是否必填 | 来源                                          |
+| --------------------- | -------- | --------------------------------------------- |
+| `title`               | ✅       | AskUserQuestion Title                         |
+| `type`                | ✅       | AskUserQuestion Type                          |
+| `priority`            | ✅       | AskUserQuestion Priority                      |
+| `acceptance_criteria` | ✅       | 2a 讨论产出（整体验收条件），用户确认         |
+| `constraints`         | 可选     | 2a 讨论产出（脆弱假设 / 红线）                |
+| `context_pointers`    | 可选     | 步骤 1 检索到的代码路径 + 2a 补充的文档 / ADR |
+| `scope`               | ✅       | 2a 讨论产出（`<层>-<技术>` 格式）             |
+| `for_agent`           | ✅       | 完善后设 `true`；                             |
+| `blocked_by`          | 可选     | AskUserQuestion Deps                          |
+| `parent_slug`         | 否       | 是否是任务的Spec                              |
+| `kind`                | ✅       | 任务类型（`spec` 或 `subtask`）               |
 
 **Completion criterion:** 方案讨论到达"另一个工程师能据此实现"的精度；`AskUserQuestion` 所有必填字段有用户确认；用户表示"这就是我想要的"；已确认无重复任务。
 
@@ -238,15 +233,21 @@ multiSelect: false
 - [ ] task-N3: <子任务3 title> verify 通过
 ```
 
-Parent 的 `kind` 保持 `"spec"`（确认，避免被误改成 subtask），`for_agent` 改为 `false`——它的完成条件是所有子任务全部 verify 过。
-
-** Completion criterion:** 所有子任务已落库；parent acceptance_criteria 已更新；parent `kind` 确认为 spec；用户看到完整结构树。
+**Completion criterion:** 所有子任务已落库；parent acceptance_criteria 已更新；parent `kind` 确认为 spec；用户看到完整结构树。
 
 ### 步骤 5：交付
 
-全部落库完成后，向用户展示最终结构树（参见下方 `Output` 章节）+ 一行启动提示。
+全部落库完成后：
 
-**Completion criterion:** 用户看到完整 spec → tasks 树；知道从哪个 task 开始 `doit`。
+1. 向用户展示最终结构树（参见下方 `Output` 章节）；
+2. 若用户确认「可以推进」，调用 `transition_plan(parent_slug, status="待排期")`，
+   把 spec 和所有子任务一次性从「待评估」翻到「待排期」，让它们出现在
+   frontier 里可被领取。返回 `{ succeeded, failed }` —— 有失败时逐条告知；
+   用 `create_dev_task` 创建的这一步默认状态是「待评估」，所以动作为「待评估 → 待排期」
+   是安全的，不会发生「进行中 → 待排期」这种逆流转。
+3. 一行启动提示：`devtask:devtask-doit <首个子任务 slug>`。
+
+**Completion criterion:** 用户看到完整 spec → tasks 树；spec + 子任务已成功推进到待排期；知道从哪个 task 开始 `doit`。
 
 ## Hard Rules
 
@@ -264,7 +265,7 @@ Parent 的 `kind` 保持 `"spec"`（确认，避免被误改成 subtask），`fo
 最终输出：完整的 spec → tasks 结构树。
 
 ```
-Spec: task-N (kind: spec, for_agent: false)
+Spec: task-N (kind: spec, for_agent: true)
 ├── task-N1: <title> [kind: subtask, parent_slug: task-N, for_agent: true]
 ├── task-N2: <title> [kind: subtask, parent_slug: task-N, for_agent: true]
 └── task-N3: <title> [kind: subtask, parent_slug: task-N, for_agent: true]
@@ -286,20 +287,20 @@ acceptance_criteria:
 
 ## Gotchas
 
-| 失败模式                                         | 规则                                                                                 |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 用户说"加个登录按钮"但没说平台                   | 步骤 1 先 grep 项目确认是 iOS / Android / Web，再推荐的 scope 带平台信息             |
-| acceptance_criteria 写成"功能正常"               | 条件必须可检查、可观测。改写为"X 接口返回 200"、"Y 页面在 Z 浏览器可渲染"            |
-| 用户说"做think里那个方案"                        | 步骤 1 先找到对应 think 产出（文件路径 / 链接），提取规格而非重新发问                |
-| context_pointers 写了一堆无关路径                | 只列步骤 1 实际检索到的、与任务直接相关的路径                                        |
-| 用户跳过确认直接说"直接建吧"                     | 仍然展示推荐值让用户逐项确认或一次性批准，不省略共享理解这一步                       |
-| 用户抛来 3+ 个不相关需求                         | 每个需求独立走一次完整流程，不合并为一个模糊 task                                    |
-| 动笔前没查 CLAUDE.md 的硬性规则                  | Durable Context Preflight 不是可选的——违反规则的 task 在执行阶段必然被打回           |
-| 子任务 scope 跨层（如"前端+后端"）               | 拆分粒度不合格——要求进一步拆到单层单技术                                             |
-| 子任务 parent 关系写错位置                       | child→parent 归属写 `parent_slug`，`blocked_by` 只放同层前置 task——两者语义不同 |
-| 一次抛出 5 个 metadata 问题让用户填              | 2a 是 grilling 方案（一次一问），2b 才用 AskUserQuestion 打包 metadata——不要混淆阶段 |
-| 方案讨论停在"大概改一下 X 模块"                  | 2a 必须深入到文件路径 + 改动内容粒度，不接受模糊描述                                 |
-| 问用户能从代码里回答的问题                       | 步骤 1 已经探索过的直接用——2a 只问用户必须做决策的未知项                             |
-| AskUserQuestion 选项里没给推荐值                 | 每个 Q 的第一个选项必须是 agent 基于 2a 讨论产出的推荐值                             |
-| 子任务粒度太大（>5 文件）还不拆                  | 步骤 4a 拆分粒度自检——超过 5 文件或 1 个服务的子任务必须进一步拆                     |
-| 子任务之间隐含顺序但没加 blocked_by              | 串行依赖必须用 `blocked_by` 显式声明                                                 |
+| 失败模式                            | 规则                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------ |
+| 用户说"加个登录按钮"但没说平台      | 步骤 1 先 grep 项目确认是 iOS / Android / Web，再推荐的 scope 带平台信息             |
+| acceptance_criteria 写成"功能正常"  | 条件必须可检查、可观测。改写为"X 接口返回 200"、"Y 页面在 Z 浏览器可渲染"            |
+| 用户说"做think里那个方案"           | 步骤 1 先找到对应 think 产出（文件路径 / 链接），提取规格而非重新发问                |
+| context_pointers 写了一堆无关路径   | 只列步骤 1 实际检索到的、与任务直接相关的路径                                        |
+| 用户跳过确认直接说"直接建吧"        | 仍然展示推荐值让用户逐项确认或一次性批准，不省略共享理解这一步                       |
+| 用户抛来 3+ 个不相关需求            | 每个需求独立走一次完整流程，不合并为一个模糊 task                                    |
+| 动笔前没查 CLAUDE.md 的硬性规则     | Durable Context Preflight 不是可选的——违反规则的 task 在执行阶段必然被打回           |
+| 子任务 scope 跨层（如"前端+后端"）  | 拆分粒度不合格——要求进一步拆到单层单技术                                             |
+| 子任务 parent 关系写错位置          | child→parent 归属写 `parent_slug`，`blocked_by` 只放同层前置 task——两者语义不同      |
+| 一次抛出 5 个 metadata 问题让用户填 | 2a 是 grilling 方案（一次一问），2b 才用 AskUserQuestion 打包 metadata——不要混淆阶段 |
+| 方案讨论停在"大概改一下 X 模块"     | 2a 必须深入到文件路径 + 改动内容粒度，不接受模糊描述                                 |
+| 问用户能从代码里回答的问题          | 步骤 1 已经探索过的直接用——2a 只问用户必须做决策的未知项                             |
+| AskUserQuestion 选项里没给推荐值    | 每个 Q 的第一个选项必须是 agent 基于 2a 讨论产出的推荐值                             |
+| 子任务粒度太大（>5 文件）还不拆     | 步骤 4a 拆分粒度自检——超过 5 文件或 1 个服务的子任务必须进一步拆                     |
+| 子任务之间隐含顺序但没加 blocked_by | 串行依赖必须用 `blocked_by` 显式声明                                                 |

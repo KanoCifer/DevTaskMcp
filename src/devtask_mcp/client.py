@@ -87,21 +87,15 @@ class DevTaskClient:
         DevTaskAPIError so the server layer only ever sees our exception type.
         """
         try:
-            resp = await self._client.request(
-                method, path, params=params, json=json
-            )
+            resp = await self._client.request(method, path, params=params, json=json)
         except httpx.TimeoutException as exc:
-            raise DevTaskAPIError(
-                status=0, message=f"请求超时（15s）：{exc}"
-            ) from exc
+            raise DevTaskAPIError(status=0, message=f"请求超时（15s）：{exc}") from exc
         except httpx.ConnectError as exc:
             raise DevTaskAPIError(
                 status=0, message=f"无法连接到 {self._base}，请检查网络或 API 地址"
             ) from exc
         except httpx.HTTPError as exc:
-            raise DevTaskAPIError(
-                status=0, message=f"网络错误：{exc}"
-            ) from exc
+            raise DevTaskAPIError(status=0, message=f"网络错误：{exc}") from exc
 
         if resp.status_code >= 400:
             raise DevTaskAPIError(status=resp.status_code, message=resp.text)
@@ -142,9 +136,15 @@ class DevTaskClient:
 
     # ------------------------------------------------------------------- get
 
-    async def get_task_by_slug(self, slug: str) -> dict:
-        """GET /dev-tasks/:slug —— 后端已 slug 化，不再接受 ObjectID。"""
-        return await self._request("GET", f"/dev-tasks/{slug}")
+    async def get_task_by_slug(self, slug: str, with_parent: bool = False) -> dict:
+        """GET /dev-tasks/:slug
+
+        with_parent=True 时后端在任务带 parent_slug 的条件下额外返回
+        parent spec 数据（嵌套在响应的 "parent" 字段），省去客户端二次查
+        询。默认 False 保持单次查询的轻量行为。
+        """
+        params = {"with_parent": "true"} if with_parent else None
+        return await self._request("GET", f"/dev-tasks/{slug}", params=params)
 
     # ----------------------------------------------------------------- create
 
@@ -156,11 +156,43 @@ class DevTaskClient:
     async def update_task(self, slug: str, body: dict) -> dict:
         return await self._request("PATCH", f"/dev-tasks/{slug}", json=body)
 
+    # ------------------------------------------------------ batch status
+
+    async def batch_status(self, slugs: list[str], status: str) -> dict:
+        """POST /dev-tasks/batch-status —— 把多个 slug 翻到同一状态。
+
+        返回 { "succeeded": [...], "failed": { "slug": "reason" } }。
+        """
+        return await self._request(
+            "POST", "/dev-tasks/batch-status", json={"slugs": slugs, "status": status}
+        )
+
+    async def transition_plan(
+        self, parent_slug: str, status: str = "待排期"
+    ) -> dict:
+        """把 spec + 所有子任务一次性翻到目标状态。
+
+        1. 用 list_children 拿全部子任务 slug；
+        2. 把 parent 也并入 slug 列表；
+        3. 调 batch_status 一次搞定。
+
+        返回值同 batch_status：{ succeeded, failed }。
+        """
+        slugs = [parent_slug]
+        children = await self.find_children(parent_slug)
+        for task in children:
+            child_slug = task.get("slug") if isinstance(task, dict) else None
+            if child_slug:
+                slugs.append(child_slug)
+        return await self.batch_status(slugs, status)
+
     # --------------------------------------------------------------- frontier
 
     async def find_frontier(self, limit: int = 10) -> list:
         """Return agent-claimable tasks (for_agent=true + backlog + unblocked)."""
-        data = await self._request("GET", "/dev-tasks/frontier", params={"limit": limit})
+        data = await self._request(
+            "GET", "/dev-tasks/frontier", params={"limit": limit}
+        )
         if isinstance(data, list):
             return data
         # Backend may wrap as { "data": [...] }; handle both shapes.
@@ -184,7 +216,11 @@ class DevTaskClient:
         children: list = []
         page = 1
         while True:
-            data = await self.list_tasks(page=page, per_page=MAX_PER_PAGE)
+            # 走后端 kind 过滤缩小扫描面（subtask 才可能有 parent_slug）；
+            # parent_slug 不在后端过滤维度里，仍需客户端比对。
+            data = await self.list_tasks(
+                kind="subtask", page=page, per_page=MAX_PER_PAGE
+            )
             tasks = data.get("tasks", []) if isinstance(data, dict) else []
             for task in tasks:
                 if task.get("parent_slug") == parent_slug:

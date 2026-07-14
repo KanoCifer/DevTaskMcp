@@ -3,13 +3,13 @@
 Tools
 -----
 - list_dev_tasks      — GET  /dev-tasks   (filter + paginate, per_page cap 20)
-- get_dev_task_by_slug — GET  /dev-tasks/:slug
+- get_dev_task_by_slug — GET  /dev-tasks/:slug?with_parent=true 附带父 spec
 - create_dev_task     — POST /dev-tasks
 - update_dev_task     — PATCH /dev-tasks/:slug
 - get_frontier_tasks  — GET  /dev-tasks/frontier
-- list_children       — GET  /dev-tasks (parent_slug filter)
-
-后端已 slug 化：所有交互通过 task-N，不再接受 ObjectID。
+- list_children       — GET  /dev-tasks?kind=subtask (走客户端 parent_slug 过滤)
+- batch_update_status — POST /dev-tasks/batch-status (多 slug 批量改状态)
+- transition_plan     — 一步推 spec + 子任务到目标状态（封装 slug 拼合 + batch_status)
 
 Run with:  uv run python -m devtask_mcp.server
 """
@@ -70,7 +70,9 @@ def _handle_errors(func: Callable) -> Callable:
             # Already a ToolError — pass through untouched.
             raise
         except DevTaskAPIError as exc:
-            logger.error("工具 %s API 错误 [%s]: %s", func.__name__, exc.status, exc.message)
+            logger.error(
+                "工具 %s API 错误 [%s]: %s", func.__name__, exc.status, exc.message
+            )
             raise ToolError(f"API 错误（HTTP {exc.status}）：{exc.message}") from exc
         except DevTaskError as exc:
             logger.error("工具 %s 配置错误: %s", func.__name__, exc)
@@ -136,7 +138,7 @@ async def list_dev_tasks(
 
 @mcp.tool()
 @_handle_errors
-async def get_dev_task_by_slug(slug: str) -> str:
+async def get_dev_task_by_slug(slug: str, with_parent: bool = False) -> str:
     """Fetch a single dev-task by its slug (task-1, task-2...).
 
     The slug is the unique, human-readable identifier for a task — use it
@@ -149,10 +151,16 @@ async def get_dev_task_by_slug(slug: str) -> str:
     work. context_pointers short-circuits file discovery by telling you
     exactly which paths are relevant.
 
+    当任务为子任务（parent_slug 非空）且 with_parent=True 时，后端额
+    外在响应的 "parent" 字段里嵌套返回父 spec 的完整数据——省去客户端
+    用 parent_slug 再查一次的往返。默认 False 保持轻量。
+
     Args:
         slug: The task slug, e.g. "task-42".
+        with_parent: 是否附带父 spec 数据（仅对带 parent_slug 的子任务
+            生效）。默认 False。
     """
-    raw = await client.get_task_by_slug(slug)
+    raw = await client.get_task_by_slug(slug, with_parent=with_parent)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
@@ -217,7 +225,7 @@ async def create_dev_task(
             this one (execution-order precedence). Pass [] when no
             dependencies. 注意：不再用于指向 parent——子→父的结构归属
             用 parent_slug 承载。
-        kind: Task role. 'spec' = 规划节点（for_agent 通常为 false），
+        kind: Task role. 'spec' = 规划节点，
             'subtask' = 可执行子任务。None 时后端默认 spec。
         parent_slug: 子任务归属的 spec slug（如 "task-5"）。spec 自身
             留 None。设置后 list_children(parent_slug) 直接索引返回子任务。
@@ -403,6 +411,60 @@ async def list_children(parent_slug: str) -> str:
         parent_slug: The parent (spec) task slug, e.g. "task-42".
     """
     raw = await client.find_children(parent_slug)
+    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
+
+
+# -------------------------------------------------------------------------- #
+# Tool: batch_update_status
+# -------------------------------------------------------------------------- #
+
+
+@mcp.tool()
+@_handle_errors
+async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
+    """Batch-update multiple dev-tasks to the same status in one call.
+
+    Use this to move a group of related tasks from one lifecycle state to
+    another — e.g. after planning, flip a spec + all its subtasks from
+    '待评估' to '待排期' in a single round-trip.
+
+    后端未做状态机校验，任意 → 任意都允许（与单条 update_dev_task 一致）。
+    已处于目标状态的任务会被跳过，不触发多余的 DB 写。
+
+    Args:
+        slugs: 要修改状态的任务 slug 列表（1..20）。
+            例：["task-5", "task-6", "task-7"]。
+        status: 目标状态。
+            One of: '待评估', '待排期', '进行中', '已搁置', '已完成'.
+    """
+    raw = await client.batch_status(slugs, status)
+    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
+
+
+# -------------------------------------------------------------------------- #
+# Tool: transition_plan
+# -------------------------------------------------------------------------- #
+
+
+@mcp.tool()
+@_handle_errors
+async def transition_plan(parent_slug: str, status: TaskStatus = "待排期") -> str:
+    """一步把 spec + 所有子任务翻到目标状态（默认 待排期）。
+
+    典型场景：devtask-plan 产出后，把 spec 和它的子任务从「待评估」
+    批量推进到「待排期」，让它们出现在 frontier 里可被领取。
+
+    内部实现：list_children(parent_slug) 取全部子任务 slug → 拼上
+    parent 自身 → 调 batch_status 一次性写入。
+
+    后端未做状态机校验，任意 → 任意都允许。
+
+    Args:
+        parent_slug: spec 的 slug（如 "task-5"）。
+        status: 目标状态，默认 '待排期'。
+            One of: '待评估', '待排期', '进行中', '已搁置', '已完成'.
+    """
+    raw = await client.transition_plan(parent_slug, status)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 

@@ -58,6 +58,9 @@ class DevTaskOut(BaseModel):
     kind: Optional[TaskKind] = None
     # 子任务归属的 spec slug；spec 自身为 None
     parent_slug: Optional[str] = None
+    # with_parent=true 且 parent_slug 非空时返回的父 spec 数据。
+    # 自引用 Optional —— 无父或未请求时为 None。
+    parent: Optional["DevTaskOut"] = None
 
 
 
