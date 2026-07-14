@@ -23,7 +23,7 @@ argument-hint: [What do you want to plan?]
 步骤 1: 探索 ──→ 从代码捞事实，压缩未知
 步骤 2: 拷问 ──→ Grilling 方案树 + AskUserQuestion 收 metadata → 形成 Spec
 步骤 3: Spec 落库 ──→ create_dev_task(parent)
-步骤 4: 拆解为 Task ──→ 展示草案 → 逐个拷问 → 落库子 task → 更新 parent
+步骤 4: 拆解为 Task ──→ 展示草案 → 逐个拷问 → 批量落库子 task → 补同层依赖 → 更新 parent
 步骤 5: 交付 ──→ 展示 spec → tasks 结构树
 ```
 
@@ -210,18 +210,50 @@ multiSelect: false
 
 一次 `AskUserQuestion` 收一个子任务的 metadata（每个子任务 1 次调用，2-3 题）。所有子任务依次处理。
 
-#### 4c. 落库子 Task
+#### 4c. 批量落库子 Task
 
-每个子任务调用 `create_dev_task`，自动设置：
+**用 `batch_create_tasks` 一次调用落库全部子任务**——不要逐个 `create_dev_task`。一次 batch = 一次 MCP round-trip = 省 N 倍 token + N 倍延迟，失败条目单独重试即可。
+
+每个子任务设置：
 
 - `kind: "subtask"` — 标记为可执行子任务
 - `parent_slug: "<parent_slug>"` — 指向所属 spec（结构归属）
 - `for_agent: true`（默认）
-- `blocked_by: [sibling_slug]` **仅在有同层顺序依赖时** —— 纯执行顺序（如"子任务 2 必须等子任务 1 完成"），不再指向 parent
+
+**单次上限 20 条。** 超出 20 个子的 spec 需要分批——拆成多次 `batch_create_tasks` 调用，每批 ≤20 条，按批返回的 slug 推进。
+
+**`batch_create_tasks` 的跨任务约束（必读）：** 同批内 **禁止跨任务 `blocked_by`**——因为同一批次的 slug 尚未分配，互相引用会失败。处理顺序：
+
+1. **先批量创建全部子任务**，`blocked_by` 留空（无论有没有同层顺序依赖）。
+2. **拿到全部 slug 后，走步骤 4d**，用 `update_dev_task(slug, blocked_by=[sibling_slug])` 把同层前置依赖补上。
+3. 依赖指向**本 batch 之外**的已有任务（非本次创建的）时，`blocked_by` 可以直接写在 batch 里——不受限制。
+
+返回体::
+
+```json
+{
+  "succeeded": [{"index": 0, "slug": "task-43", "title": "..."}],
+  "failed":    [{"index": 2, "title": "...", "error": "..."}],
+  "summary":   "9/10 created"
+}
+```
+
+- `succeeded`/`failed` 里的 `index` 对应输入数组下标，用于定位失败条目。
+- 有失败时**只重试 failed 里的条目**（用 `index` 取对应输入，单独再跑一次 batch），不要整批重跑。
+- 超过 20 条被截断时返回 ToolError（`单次最多 20 条…`），按提示分批。
 
 **与旧版的关键区别：** 原来写 `blocked_by: [parent_slug]` 不再正确——parent 关系由 `parent_slug` 承载，`blocked_by` 只承载同层前置依赖。这使得 `list_children(parent_slug)` 走后端 parent_slug 索引查询，不再全表扫描 + 过滤。
 
-#### 4d. 更新 Parent 指向子 Task
+#### 4d. 补同层顺序依赖（仅在有顺序依赖时执行）
+
+步骤 4c 创建时 `blocked_by` 留空了。此时所有子任务 slug 已分配，对于存在同层前置依赖的子任务（如"子任务 2 必须等子任务 1 完成"），逐个调用 `update_dev_task(slug, blocked_by=[sibling_slug])` 补上。
+
+- 返回的 `succeeded` 列表里的slug 就是引用目标——直接用，不要猜 slug 编号。
+- 无顺序依赖的 spec（所有子任务可并行）→ 跳过本步骤。
+
+**Completion criterion:** 所有顺序依赖已用 `update_dev_task` 显式声明；无遗漏。
+
+#### 4e. 更新 Parent 指向子 Task
 
 用 `update_dev_task` 把 parent 的 acceptance_criteria 改为指向子任务完成状态：
 
@@ -243,7 +275,7 @@ multiSelect: false
 2. 若用户确认「可以推进」，调用 `transition_plan(parent_slug, status="待排期")`，
    把 spec 和所有子任务一次性从「待评估」翻到「待排期」，让它们出现在
    frontier 里可被领取。返回 `{ succeeded, failed }` —— 有失败时逐条告知；
-   用 `create_dev_task` 创建的这一步默认状态是「待评估」，所以动作为「待评估 → 待排期」
+   用 `batch_create_tasks` 创建的子任务默认状态是「待评估」，所以动作为「待评估 → 待排期」
    是安全的，不会发生「进行中 → 待排期」这种逆流转。
 3. 一行启动提示：`devtask:devtask-doit <首个子任务 slug>`。
 
@@ -303,4 +335,5 @@ acceptance_criteria:
 | 问用户能从代码里回答的问题          | 步骤 1 已经探索过的直接用——2a 只问用户必须做决策的未知项                             |
 | AskUserQuestion 选项里没给推荐值    | 每个 Q 的第一个选项必须是 agent 基于 2a 讨论产出的推荐值                             |
 | 子任务粒度太大（>5 文件）还不拆     | 步骤 4a 拆分粒度自检——超过 5 文件或 1 个服务的子任务必须进一步拆                     |
+| 同批 batch 内写跨任务 blocked_by    | `batch_create_tasks` 同批内禁止跨任务 `blocked_by`（slug 尚未分配，必然失败）——先批量创建再走步骤 4d 用 `update_dev_task` 补依赖 |
 | 子任务之间隐含顺序但没加 blocked_by | 串行依赖必须用 `blocked_by` 显式声明                                                 |

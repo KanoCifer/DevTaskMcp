@@ -1,10 +1,11 @@
-"""FastMCP server exposing 6 tools over stdio.
+"""FastMCP server exposing tools over stdio.
 
 Tools
 -----
 - list_dev_tasks      — GET  /dev-tasks   (filter + paginate, per_page cap 20)
 - get_dev_task_by_slug — GET  /dev-tasks/:slug?with_parent=true 附带父 spec
 - create_dev_task     — POST /dev-tasks
+- batch_create_tasks  — POST /dev-tasks × N（并发封装，上限 20）
 - update_dev_task     — PATCH /dev-tasks/:slug
 - get_frontier_tasks  — GET  /dev-tasks/frontier
 - list_children       — GET  /dev-tasks?kind=subtask (走客户端 parent_slug 过滤)
@@ -27,7 +28,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from .client import DevTaskAPIError, DevTaskClient, DevTaskError
-from .models import TaskKind, TaskPriority, TaskScope, TaskStatus, TaskType
+from .models import BatchTaskRequest, TaskKind, TaskPriority, TaskScope, TaskStatus, TaskType
 
 logger = logging.getLogger("devtask-mcp")
 
@@ -82,6 +83,47 @@ def _handle_errors(func: Callable) -> Callable:
             raise ToolError("服务器内部错误，请查看日志") from exc
 
     return wrapper
+
+
+# -------------------------------------------------------------------------- #
+# Shared helpers
+# -------------------------------------------------------------------------- #
+
+MAX_BATCH_CREATE = 20  # 与 client.MAX_PER_PAGE 同值，单写一份用于入口校验
+
+
+def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
+    """把 BatchTaskRequest 转成 POST /dev-tasks 的 JSON body。
+
+    单一改动点：create_dev_task 与 batch_create_tasks 都经这里，
+    后端增字段时只改一处。
+    """
+    body: dict[str, Any] = {
+        "title": t.title,
+        "type": t.task_type,
+        "priority": t.priority,
+        "scope": t.scope,
+        "for_agent": t.for_agent,
+    }
+    if t.description is not None:
+        body["description"] = t.description
+    if t.detail is not None:
+        body["detail"] = t.detail
+    if t.due_date is not None:
+        body["due_date"] = t.due_date
+    if t.acceptance_criteria is not None:
+        body["acceptance_criteria"] = t.acceptance_criteria
+    if t.constraints is not None:
+        body["constraints"] = t.constraints
+    if t.context_pointers is not None:
+        body["context_pointers"] = t.context_pointers
+    if t.blocked_by is not None:
+        body["blocked_by"] = t.blocked_by
+    if t.kind is not None:
+        body["kind"] = t.kind
+    if t.parent_slug is not None:
+        body["parent_slug"] = t.parent_slug
+    return body
 
 
 # -------------------------------------------------------------------------- #
@@ -230,33 +272,71 @@ async def create_dev_task(
         parent_slug: 子任务归属的 spec slug（如 "task-5"）。spec 自身
             留 None。设置后 list_children(parent_slug) 直接索引返回子任务。
     """
-    body: dict[str, Any] = {
-        "title": title,
-        "type": task_type,
-        "priority": priority,
-        "scope": scope,
-        "for_agent": for_agent,
-    }
-    if description is not None:
-        body["description"] = description
-    if detail is not None:
-        body["detail"] = detail
-    if due_date is not None:
-        body["due_date"] = due_date
-    if acceptance_criteria is not None:
-        body["acceptance_criteria"] = acceptance_criteria
-    if constraints is not None:
-        body["constraints"] = constraints
-    if context_pointers is not None:
-        body["context_pointers"] = context_pointers
-    if blocked_by is not None:
-        body["blocked_by"] = blocked_by
-    if kind is not None:
-        body["kind"] = kind
-    if parent_slug is not None:
-        body["parent_slug"] = parent_slug
+    body = _task_body(
+        BatchTaskRequest(
+            title=title,
+            task_type=task_type,
+            priority=priority,
+            scope=scope,
+            description=description,
+            detail=detail,
+            due_date=due_date,
+            acceptance_criteria=acceptance_criteria,
+            constraints=constraints,
+            context_pointers=context_pointers,
+            for_agent=for_agent,
+            blocked_by=blocked_by,
+            kind=kind,
+            parent_slug=parent_slug,
+        )
+    )
 
     raw = await client.create_task(body)
+    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
+
+
+# -------------------------------------------------------------------------- #
+# Tool: batch_create_tasks
+# -------------------------------------------------------------------------- #
+
+
+@mcp.tool()
+@_handle_errors
+async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
+    """Batch-create multiple dev-tasks in a single MCP round-trip.
+
+    Internally dispatches all creates concurrently (asyncio.gather) and
+    returns a per-item summary. Partial failures are **not** rolled back —
+    they are reported in the ``failed`` list so the agent can retry only
+    the failing items.
+
+    单次上限 20 条；超出会被截断，只处理前 20 条。
+
+    Important constraint: tasks in a single batch must be **independent**
+    of each other. References via ``blocked_by`` to slugs that do not
+    yet exist (e.g. a sibling in the same batch) will fail on the
+    backend. For execution-order dependencies, create the batch first,
+    then use ``update_dev_task`` to wire up ``blocked_by`` afterwards.
+    ``parent_slug`` may reference an already-existing spec without
+    restriction.
+
+    The response includes a ``succeeded`` list (index + slug + title),
+    a ``failed`` list (index + title + error message), and a ``summary``
+    string like ``"7/10 created"``.
+
+    Args:
+        tasks: List of task creation requests (1..20 items). Each item
+            uses the same fields as ``create_dev_task``: title,
+            task_type, priority, scope are required; all other fields
+            are optional. New tasks always start at status '待评估'.
+    """
+    if len(tasks) > MAX_BATCH_CREATE:
+        raise ToolError(
+            f"单次最多 {MAX_BATCH_CREATE} 条，当前 {len(tasks)} 条，请分批创建"
+        )
+
+    bodies = [_task_body(t) for t in tasks]
+    raw = await client.batch_create_tasks(bodies)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 

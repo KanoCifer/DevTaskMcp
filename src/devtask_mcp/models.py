@@ -64,6 +64,34 @@ class DevTaskOut(BaseModel):
 
 
 
+# ---------------------------------------------------------------------------
+# Batch create
+# ---------------------------------------------------------------------------
+
+
+class BatchTaskRequest(BaseModel):
+    """单个任务的创建请求，字段与 create_dev_task 工具参数同形。
+
+    单次 batch 内不允许跨任务 blocked_by（因为同批 slug 尚未分配），
+    但允许引用已存在的 parent_slug。
+    """
+
+    title: str
+    task_type: TaskType
+    priority: TaskPriority
+    scope: str
+    description: Optional[str] = None
+    detail: Optional[str] = None
+    due_date: Optional[str] = None
+    acceptance_criteria: Optional[str] = None
+    constraints: Optional[str] = None
+    context_pointers: Optional[str] = None
+    for_agent: bool = False
+    blocked_by: Optional[list[str]] = None
+    kind: Optional[TaskKind] = None
+    parent_slug: Optional[str] = None
+
+
 class PaginationOut(BaseModel):
     """Pagination envelope from list responses."""
 
