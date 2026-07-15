@@ -1,7 +1,7 @@
 ---
 name: devtask-simple
-description: "为简单任务（小功能、bug fix、小优化）快速探索代码、形成方案、落库为一个可执行 task。当用户抛出一个小需求、小 bug、小改进，且预计改动 ≤5 文件、不需要拆分为多个子任务时使用。不适合复杂功能（用 devtask-plan）。"
-argument-hint: [What do you want to do?]
+description: "为简单任务（小功能、bug fix、小优化）快速探索代码、形成方案、落库为一个可执行 task（for_agent=true, 原子粒度）。当用户抛出预计改动 ≤5 文件、不需要拆分为多个子任务的小意图时使用。典型触发：\"修一下 X 的 bug\"、\"加个 Y 按钮\"、\"这段代码能不能优化\"。不适合：跨层改动、3+ 独立诉求、架构决策（用 devtask-plan）；价值/判断类（Evaluation 模式可覆盖）。"
+argument-hint: [Brief description of the small task, bug fix, or improvement]
 ---
 
 # devtask-simple
@@ -24,7 +24,7 @@ argument-hint: [What do you want to do?]
 
 ### 步骤 1：探索
 
-先探索代码再问用户——能从代码找的答案就别问：
+先探索代码再问用户——能从代码找的答案就别问。**进探索前先 `list_dev_tasks` 检查是否有类似 task，已有则展示给用户判断是否继续**（避免白探索已跟踪的工作）。
 
 - 模块名 → Read / grep / `codegraph_explore` 定位
 - bug → 搜索 error path / 最近改动
@@ -33,11 +33,18 @@ argument-hint: [What do you want to do?]
 
 - 涉及框架能力时优先检查官方方案。
 
-目标：把"未知"压缩到最小，只把真正的决策留给步骤 2。
+**退出条件：能回答以下三个问题时即进入步骤 2——① 改哪些文件 ② 大致怎么改 ③ 影响范围多大。**
 
 ### 步骤 2：方案
 
 按意图类型激活模式。先**摊开步骤 1 成果**，再沿方案树逐枝推进——一次一问，附推荐答案 + 理由。
+
+**模式选择：**
+- 用户明确要"修"或"加某物" → Lightweight
+- 用户在质疑价值/存在意义（"这个组件还有用吗"、"要不要删掉"） → Evaluation
+- 用户抛出 3+ 独立且不相关的诉求 → Triage
+- 拿不准时默认 Lightweight；探索中发现多诉求再转 Triage
+- 注意："判断一下这个报错" = Debug，走 Lightweight 修掉；Evaluation 只用于**价值/存在判断**，不用于 bug 修复
 
 #### Lightweight — 修/加某物
 
@@ -54,16 +61,21 @@ Keep / Kill /Pivot（第一行结论，不要开场白）
 ```
 
 - Pivot → 逐一列出可操作新方向
-- Kill → 先列影响范围和清理建议再确认
+- Kill → 先列影响范围和清理建议再确认；**Kill 不落库**（决策本身记录在聊天即可），若清理工作需要 task，作为独立诉求重新走流程
 - 结论是 Keep 则落库 task，Kill 则不落，Pivot 则落库新方向
 
 #### Triage — 一捆诉求
 
 每个项分类：Bug / Already works / Accepted / Cosmetic / Out of scope。展示分类表等用户确认再逐项落库（先 grep 是否已有所需 affordance，避免误判缺口）。
 
-### 2b. Metadata 收集
+分类指引：
+- Cosmetic → 建议 drop 或积累到一定数量再批量处理
+- Out of scope → 本次不建 task，记录拒绝原因
+- Accepted → 批量用 `batch_create_tasks` 落库
 
-方案确定后用 `AskUserQuestion` 一次收集所有字段：
+### 步骤 3：Metadata 收集
+
+方案确定后用 `AskUserQuestion`（Claude Code 内置交互组件，非 MCP 工具）一次收集所有字段：
 
 ```json
 {
@@ -104,9 +116,7 @@ Keep / Kill /Pivot（第一行结论，不要开场白）
       "header": "Scope",
       "multiSelect": false,
       "options": [
-        { "label": "前端-React" },
-        { "label": "后端-Python" },
-        { "label": "通用" },
+        { "label": "<从代码库实际技术栈推导>", "description": "例如 前端-React / 后端-Python / 通用" },
         { "label": "其他" }
       ]
     }
@@ -118,11 +128,15 @@ Keep / Kill /Pivot（第一行结论，不要开场白）
 
 核心字段：`title`、`task_type`、`priority`、`scope` 来自 AskUserQuestion；`acceptance_criteria`（2-4 条可检查条件）、`context_pointers`（相关代码路径）来自方案讨论。
 
-### 步骤 3：落库
+### 步骤 4：落库
 
-`create_dev_task` 一次性落库为原子 task（`kind=\"subtask\"`、`for_agent=true`、无 `parent_slug`）。展示卡片（title / type / priority / scope / acceptance_criteria / context_pointers），启动提示 `devtask:devtask-doit task-N`。
+**Triage accepted 项** → 用 `batch_create_tasks` 批量落库（每个 item 独立 task），避免多次 Metadata 收集。
 
-**Optional:** 用户确认「可以推进」→ `update_dev_task(slug, status=\"待排期\")` 推进到 frontier。
+其余模式 → `create_dev_task` 一次性落库为原子 task。
+
+展示卡片（title / type / priority / scope / acceptance_criteria / context_pointers），启动提示 `devtask:devtask-doit task-N`。
+
+落库后 task 初始状态为 **待评估**。**可选：** 用户确认「可以推进」→ `update_dev_task` 把状态推进到待排期，进入 frontier。
 
 ## Hard Rules
 

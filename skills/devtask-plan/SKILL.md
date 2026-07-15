@@ -1,7 +1,7 @@
 ---
 name: devtask-plan
-description: "调研需求形成 spec，再拆解为多个可执行的具体 task。当用户抛出一个应被跟踪的需求/功能/想法时使用——先明确做什么、怎么做，再落库为可执行的 task 单元。"
-argument-hint: [What do you want to do?]
+description: "调研需求形成 spec，再拆解为多个可执行的具体 task（输出 = spec + 子任务树）。当用户抛出一个预计改动 >5 文件、或需要跨层/多步骤的需求/功能/想法时使用——先明确做什么、怎么做，再落库为 spec + 子任务树。典型触发：\"做个 X 功能\"、\"规划一下这个需求\"、\"我有个想法想拆成几个 task\"。不适合：简单的小修/小加/单文件改动（用 devtask-simple）；价值/判断类（用 devtask-simple 的 Evaluation 模式）。"
+argument-hint: [Requirement / feature / idea to be specified and broken into tasks]
 ---
 
 # devtask-plan
@@ -15,7 +15,7 @@ argument-hint: [What do you want to do?]
 ```
 步骤 1: 探索 ──→ 从代码捞事实，压缩未知
 步骤 2: 方案 ──→ Grilling 方案树 + AskUserQuestion 收 metadata → 形成 Spec
-步骤 3: Spec 落库 ──→ create_dev_task(parent)
+步骤 3: Spec 落库 ──→ create_dev_task
 步骤 4: 拆解为 Task ──→ 展示草案 → 逐个拷问 → 批量落库子 task → 补依赖 → 更新 parent
 步骤 5: 交付 ──→ 展示结构树
 ```
@@ -31,7 +31,9 @@ argument-hint: [What do you want to do?]
 
 **同时做：** 用 `list_dev_tasks` 查重复（有重复先展示让用户判断）；涉及框架能力时优先检查官方方案。
 
-目标：把"未知"压缩到最小，只把真正的决策留给步骤 2。
+**退出条件：能回答以下三个问题时即进入步骤 2——① 改哪些文件 ② 大致怎么改 ③ 影响范围多大。**
+
+**降级/升级 gate：** 步骤 1 结束时如果发现需求改动 ≤5 文件且单层次——建议降级到 `/devtask-simple`，本技能终止；如果发现需求超过 5 个文件或跨多个服务，保持在 plan 继续。
 
 ### 步骤 2：方案
 
@@ -43,9 +45,15 @@ argument-hint: [What do you want to do?]
 
 原则：一次一问不抛问卷；每个问题附推荐答案 + 理由；能从代码回答的不问；具体到"另一个工程师能据此实现"；Hard-to-reverse 决策（引入新语言/改公共 API）必须明确确认。
 
+**示例（用户说"加 SSO 登录"）：**
+- Q1: 用 NextAuth vs 自研 OAuth？（推荐 NextAuth，生态成熟、维护成本低）
+- Q2: session 存 Redis vs JWT？（推荐 JWT，无状态、部署简单）
+- Q3: 用户表加哪些字段？（推荐 provider / provider_id / avatar_url）
+- Q4: 现有登录页改造还是新建路由？（推荐改造，保持 URL 稳定）
+
 #### 2b. Metadata 收集
 
-方案确定后用 `AskUserQuestion` 一次收集所有字段（`questions` 数组传 3-4 题）：
+方案确定后用 `AskUserQuestion`（Claude Code 内置交互组件，非 MCP 工具）一次收集所有字段（`questions` 数组传 3-4 题）：
 
 ```json
 {
@@ -79,7 +87,7 @@ argument-hint: [What do you want to do?]
       ]
     },
     {
-      "question": "前置依赖任务？",
+      "question": "Spec 的前置依赖任务？（parent 自身的 blocked_by — 依赖其他 spec 时填写）",
       "header": "Deps",
       "multiSelect": true,
       "options": [
@@ -92,7 +100,7 @@ argument-hint: [What do you want to do?]
 }
 ```
 
-规则：每个 Q 第一个选项是 agent 推荐值；选"其他"返回后追加追问；`scope` 和 `for_agent` 通过方案讨论确定，不单独提问。
+规则：每个 Q 第一个选项是 agent 推荐值；选"其他"返回后追加追问；`scope` 通过方案讨论确定不单独提问（2b 末尾检查：若 2a 中未明确 scope 则追加一问）；`for_agent` 默认 true。
 
 核心字段：`title`、`type`、`priority`、`scope`、`blocked_by` 来自 AskUserQuestion；`acceptance_criteria`、`constraints`、`context_pointers` 来自方案讨论。
 
@@ -100,13 +108,13 @@ argument-hint: [What do you want to do?]
 
 ### 步骤 3：Spec 落库
 
-用 `create_dev_task` 把 spec 落库为 parent task（`kind="spec"`、`for_agent: true`）。始终按 `for_agent: true` 落库——避免用户反悔选「不拆」时产生不可执行的 dead task。
+用 `create_dev_task` 把 spec 落库为 parent task。始终按 for_agent: true 落库——避免用户反悔选「不拆」时产生不可执行的 dead task。
 
 ### 步骤 4：拆解为 Task
 
 #### 4a. 展示草案
 
-**降级检查：** 如果步骤 1 发现需求改动 ≤5 文件、单层次——建议降级到 `/devtask-simple`，用户确认后离开本技能。
+> 降级检查已前置到步骤 1 出口（见 §1），此处无需重复。若本步骤到达，说明需求复杂度达标。
 
 提出子任务拆分方案，每个子任务必须满足：
 
@@ -118,26 +126,30 @@ argument-hint: [What do you want to do?]
 
 #### 4b. 逐个产出子 Task
 
-对每个子任务运行步骤 2 的轻量版——只问特有决策点（`title`、`acceptance_criteria`、`constraints`、`context_pointers`）。`type`、`priority`、`scope` 从 parent 继承不重问。
+对每个子任务收集四个字段：`title`、`acceptance_criteria`、`constraints`、`context_pointers`——**type / priority / scope 从 parent 继承不重问**。
+
+推荐流程：agent 先基于 parent spec 一次性推导全部子任务的四个字段草案 → AskUserQuestion 打包确认（不是每子任务单独一轮） → 用户确认后直接进 §4c。只有真正有歧义的决策点才单独追问，不在 grilling 阶段混问卷。
 
 #### 4c. 批量落库
 
-用 `batch_create_tasks` 一次落库全部子任务（`kind="subtask"`、`parent_slug` 指向 spec、`for_agent=true`）。单次上限 20 条，超出分批。
+一次性批量落库全部子任务（`kind="subtask"`、`parent_slug` 指向 spec、`for_agent=true`）。单次上限 20 条，超出分批。
 
 **同批内禁止跨任务 `blocked_by`**（slug 尚未分配，互相引用会失败）。先全部创建，`blocked_by` 留空，拿到 slug 后走 4d 补。依赖指向本 batch 外已有的任务时不受限。
 
 #### 4d. 补同层顺序依赖
 
-有顺序依赖的子任务走 `update_dev_task(slug, blocked_by=[sibling_slug])` 补上。无顺序依赖则跳过。
+有顺序依赖的子任务走 `update_dev_task` 补上 blocked_by。无顺序依赖则跳过。
 
 #### 4e. 更新 Parent
 
-用 `update_dev_task` 把 parent 的 acceptance_criteria 改为指向子任务完成状态：
+1. 把 parent 的 acceptance_criteria 改为指向子任务完成状态：
 
 ```markdown
 - [ ] task-N1: <子任务1 title> verify 通过
 - [ ] task-N2: <子任务2 title> verify 通过
 ```
+
+2. 把 parent 的 **for_agent 改为 false**（parent 是工头，不兼打工头；agent 只领子任务）。
 
 ### 步骤 5：交付
 
@@ -152,7 +164,7 @@ Spec: task-N (kind: spec)
 启动：/devtask:devtask-doit task-N1
 ```
 
-若用户确认「可以推进」，调用 `transition_plan(parent_slug, status="待排期")` 把 spec + 全部子任务一次性翻到待排期。
+若用户确认「可以推进」，把 spec + 全部子任务一次性状态翻转到 **待排期**（进入 frontier）。如需只推进部分子任务，手动逐个推进即可。
 
 ## Hard Rules
 
@@ -163,7 +175,7 @@ Spec: task-N (kind: spec)
 - **子 Task 独立可执行：** acceptance_criteria 不隐含"等其他 task 完成"——用 `blocked_by` 声明顺序
 - **子 Task 不循环依赖：** `blocked_by` 只指向同层前置；子→父归属写 `parent_slug`
 - **Parent 不兼打工头：** 拆解后 parent 的 `for_agent` 设 false
-- **攻破即报废：** 核心假设不成立则暂停回决策
+- **攻破即报废：** 核心假设不成立则暂停，把 task 状态改为 **已搁置**，detail 字段记录哪条假设被攻破及攻破依据
 
 ## Gotchas
 
@@ -176,5 +188,6 @@ Spec: task-N (kind: spec)
 | 方案讨论停在"大概改一下"           | 必须深入到文件路径 + 改动内容粒度                            |
 | 同批 batch 内写跨任务 `blocked_by` | 必然失败——先批量创建再走 4d 用 `update_dev_task` 补          |
 | 需求实际很简单却走完 plan          | 步骤 4a 降级检查——≤5 文件单层次走 `/devtask-simple`          |
-| 用户抛来 3+ 个不相关需求           | 每个需求独立走完整流程，不合并                               |
+| 用户抛来 3+ 个不相关需求           | 相关需求合并走一次流程；不相关需求各自独立                   |
+| 拆解后忘记设 parent.for_agent=false | 必须走 §4e — agent 只领子任务，parent 是工头                |
 | AskUserQuestion 没给推荐值         | 第一选项必须是 agent 推荐值                                  |
