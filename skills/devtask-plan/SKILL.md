@@ -1,7 +1,8 @@
 ---
 name: devtask-plan
-description: "调研需求形成 spec，再拆解为多个可执行的具体 task（输出 = spec + 子任务树）。当用户抛出一个预计改动 >5 文件、或需要跨层/多步骤的需求/功能/想法时使用——先明确做什么、怎么做，再落库为 spec + 子任务树。典型触发：\"做个 X 功能\"、\"规划一下这个需求\"、\"我有个想法想拆成几个 task\"。不适合：简单的小修/小加/单文件改动（用 devtask-simple）；价值/判断类（用 devtask-simple 的 Evaluation 模式）。"
-argument-hint: [Requirement / feature / idea to be specified and broken into tasks]
+description: '调研需求形成 spec，再拆解为多个可执行的具体 task（输出 = spec + 子任务树）。当用户抛出一个预计改动 >5 文件、或需要跨层/多步骤的需求/功能/想法时使用——先明确做什么、怎么做，再落库为 spec + 子任务树。典型触发："做个 X 功能"、"规划一下这个需求"、"我有个想法想拆成几个 task"。不适合：简单的小修/小加/单文件改动（用 devtask-simple）；价值/判断类（用 devtask-simple 的 Evaluation 模式）。'
+argument-hint:
+  [Requirement / feature / idea to be specified and broken into tasks]
 ---
 
 # devtask-plan
@@ -15,7 +16,7 @@ argument-hint: [Requirement / feature / idea to be specified and broken into tas
 ```
 步骤 1: 探索 ──→ 从代码捞事实，压缩未知
 步骤 2: 方案 ──→ Grilling 方案树 + AskUserQuestion 收 metadata → 形成 Spec
-步骤 3: Spec 落库 ──→ create_dev_task
+步骤 3: Spec 落库 ──→ devtask_create_task
 步骤 4: 拆解为 Task ──→ 展示草案 → 逐个拷问 → 批量落库子 task → 补依赖 → 更新 parent
 步骤 5: 交付 ──→ 展示结构树
 ```
@@ -29,7 +30,7 @@ argument-hint: [Requirement / feature / idea to be specified and broken into tas
 - bug → 搜索 error path / 最近改动
 - 模糊目标 → 跑相关模块搞清结构
 
-**同时做：** 用 `list_dev_tasks` 查重复（有重复先展示让用户判断）；涉及框架能力时优先检查官方方案。
+**同时做：** 用 `devtask_list_tasks` 查重复（有重复先展示让用户判断）；涉及框架能力时优先检查官方方案。
 
 **退出条件：能回答以下三个问题时即进入步骤 2——① 改哪些文件 ② 大致怎么改 ③ 影响范围多大。**
 
@@ -46,6 +47,7 @@ argument-hint: [Requirement / feature / idea to be specified and broken into tas
 原则：一次一问不抛问卷；每个问题附推荐答案 + 理由；能从代码回答的不问；具体到"另一个工程师能据此实现"；Hard-to-reverse 决策（引入新语言/改公共 API）必须明确确认。
 
 **示例（用户说"加 SSO 登录"）：**
+
 - Q1: 用 NextAuth vs 自研 OAuth？（推荐 NextAuth，生态成熟、维护成本低）
 - Q2: session 存 Redis vs JWT？（推荐 JWT，无状态、部署简单）
 - Q3: 用户表加哪些字段？（推荐 provider / provider_id / avatar_url）
@@ -104,11 +106,11 @@ argument-hint: [Requirement / feature / idea to be specified and broken into tas
 
 核心字段：`title`、`type`、`priority`、`scope`、`blocked_by` 来自 AskUserQuestion；`acceptance_criteria`、`constraints`、`context_pointers` 来自方案讨论。
 
-**不要提前落库。** 用户确认方案 + metadata 前不调用 `create_dev_task`。
+**不要提前落库。** 用户确认方案 + metadata 前不调用 `devtask_create_task`。
 
 ### 步骤 3：Spec 落库
 
-用 `create_dev_task` 把 spec 落库为 parent task。始终按 for_agent: true 落库——避免用户反悔选「不拆」时产生不可执行的 dead task。
+用 `devtask_create_task` 把 spec 落库为 parent task。始终按 for_agent: true 落库——避免用户反悔选「不拆」时产生不可执行的 dead task。
 
 ### 步骤 4：拆解为 Task
 
@@ -138,7 +140,7 @@ argument-hint: [Requirement / feature / idea to be specified and broken into tas
 
 #### 4d. 补同层顺序依赖
 
-有顺序依赖的子任务走 `update_dev_task` 补上 blocked_by。无顺序依赖则跳过。
+有顺序依赖的子任务走 `devtask_update_task` 补上 blocked_by。无顺序依赖则跳过。
 
 #### 4e. 更新 Parent
 
@@ -171,7 +173,7 @@ Spec: task-N (kind: spec)
 - **禁止重复落库：** 已有类似 task 先展示让用户判断
 - **Spec 始终拆解为可执行 task：** 不允许只产出计划文档不落库
 - **No placeholders：** 所有字段在用户确认时具体。含占位符则 `for_agent=false` 标注未决项
-- **唯一真相源：** 走 `update_dev_task` 修改，不重新 create
+- **唯一真相源：** 走 `devtask_update_task` 修改，不重新 create
 - **子 Task 独立可执行：** acceptance_criteria 不隐含"等其他 task 完成"——用 `blocked_by` 声明顺序
 - **子 Task 不循环依赖：** `blocked_by` 只指向同层前置；子→父归属写 `parent_slug`
 - **Parent 不兼打工头：** 拆解后 parent 的 `for_agent` 设 false
@@ -179,15 +181,15 @@ Spec: task-N (kind: spec)
 
 ## Gotchas
 
-| 失败模式                           | 规则                                                         |
-| ---------------------------------- | ------------------------------------------------------------ |
-| acceptance_criteria 写成"功能正常" | 可检查、可观测："X 接口返回 200"、"Y 页面可渲染"             |
-| 子任务 scope 跨层（如"前端+后端"） | 进一步拆到单层单技术                                         |
-| child→parent 关系写错位置          | 归属用 `parent_slug`，`blocked_by` 只放同层前置              |
-| 一次抛出多个 metadata 问题         | 2a grilling 一次一问；2b 才用 AskUserQuestion 打包——不要混淆 |
-| 方案讨论停在"大概改一下"           | 必须深入到文件路径 + 改动内容粒度                            |
-| 同批 batch 内写跨任务 `blocked_by` | 必然失败——先批量创建再走 4d 用 `update_dev_task` 补          |
-| 需求实际很简单却走完 plan          | 步骤 4a 降级检查——≤5 文件单层次走 `/devtask-simple`          |
-| 用户抛来 3+ 个不相关需求           | 相关需求合并走一次流程；不相关需求各自独立                   |
-| 拆解后忘记设 parent.for_agent=false | 必须走 §4e — agent 只领子任务，parent 是工头                |
-| AskUserQuestion 没给推荐值         | 第一选项必须是 agent 推荐值                                  |
+| 失败模式                            | 规则                                                         |
+| ----------------------------------- | ------------------------------------------------------------ |
+| acceptance_criteria 写成"功能正常"  | 可检查、可观测："X 接口返回 200"、"Y 页面可渲染"             |
+| 子任务 scope 跨层（如"前端+后端"）  | 进一步拆到单层单技术                                         |
+| child→parent 关系写错位置           | 归属用 `parent_slug`，`blocked_by` 只放同层前置              |
+| 一次抛出多个 metadata 问题          | 2a grilling 一次一问；2b 才用 AskUserQuestion 打包——不要混淆 |
+| 方案讨论停在"大概改一下"            | 必须深入到文件路径 + 改动内容粒度                            |
+| 同批 batch 内写跨任务 `blocked_by`  | 必然失败——先批量创建再走 4d 用 `devtask_update_task` 补      |
+| 需求实际很简单却走完 plan           | 步骤 4a 降级检查——≤5 文件单层次走 `/devtask-simple`          |
+| 用户抛来 3+ 个不相关需求            | 相关需求合并走一次流程；不相关需求各自独立                   |
+| 拆解后忘记设 parent.for_agent=false | 必须走 §4e — agent 只领子任务，parent 是工头                 |
+| AskUserQuestion 没给推荐值          | 第一选项必须是 agent 推荐值                                  |

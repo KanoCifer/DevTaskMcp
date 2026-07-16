@@ -1,6 +1,6 @@
 ---
 name: devtask-simple
-description: "为简单任务（小功能、bug fix、小优化）快速探索代码、形成方案、落库为一个可执行 task（for_agent=true, 原子粒度）。当用户抛出预计改动 ≤5 文件、不需要拆分为多个子任务的小意图时使用。典型触发：\"修一下 X 的 bug\"、\"加个 Y 按钮\"、\"这段代码能不能优化\"。不适合：跨层改动、3+ 独立诉求、架构决策（用 devtask-plan）；价值/判断类（Evaluation 模式可覆盖）。"
+description: '为简单任务（小功能、bug fix、小优化）快速探索代码、形成方案、落库为一个可执行 task（for_agent=true, 原子粒度）。当用户抛出预计改动 ≤5 文件、不需要拆分为多个子任务的小意图时使用。典型触发："修一下 X 的 bug"、"加个 Y 按钮"、"这段代码能不能优化"。不适合：跨层改动、3+ 独立诉求、架构决策（用 devtask-plan）；价值/判断类（Evaluation 模式可覆盖）。'
 argument-hint: [Brief description of the small task, bug fix, or improvement]
 ---
 
@@ -24,7 +24,7 @@ argument-hint: [Brief description of the small task, bug fix, or improvement]
 
 ### 步骤 1：探索
 
-先探索代码再问用户——能从代码找的答案就别问。**进探索前先 `list_dev_tasks` 检查是否有类似 task，已有则展示给用户判断是否继续**（避免白探索已跟踪的工作）。
+先探索代码再问用户——能从代码找的答案就别问。**进探索前先 `devtask_list_tasks` 检查是否有类似 task，已有则展示给用户判断是否继续**（避免白探索已跟踪的工作）。
 
 - 模块名 → Read / grep / `codegraph_explore` 定位
 - bug → 搜索 error path / 最近改动
@@ -40,6 +40,7 @@ argument-hint: [Brief description of the small task, bug fix, or improvement]
 按意图类型激活模式。先**摊开步骤 1 成果**，再沿方案树逐枝推进——一次一问，附推荐答案 + 理由。
 
 **模式选择：**
+
 - 用户明确要"修"或"加某物" → Lightweight
 - 用户在质疑价值/存在意义（"这个组件还有用吗"、"要不要删掉"） → Evaluation
 - 用户抛出 3+ 独立且不相关的诉求 → Triage
@@ -69,9 +70,10 @@ Keep / Kill /Pivot（第一行结论，不要开场白）
 每个项分类：Bug / Already works / Accepted / Cosmetic / Out of scope。展示分类表等用户确认再逐项落库（先 grep 是否已有所需 affordance，避免误判缺口）。
 
 分类指引：
+
 - Cosmetic → 建议 drop 或积累到一定数量再批量处理
 - Out of scope → 本次不建 task，记录拒绝原因
-- Accepted → 批量用 `batch_create_tasks` 落库
+- Accepted → 批量用 `devtask_batch_create_tasks` 落库
 
 ### 步骤 3：Metadata 收集
 
@@ -116,7 +118,10 @@ Keep / Kill /Pivot（第一行结论，不要开场白）
       "header": "Scope",
       "multiSelect": false,
       "options": [
-        { "label": "<从代码库实际技术栈推导>", "description": "例如 前端-React / 后端-Python / 通用" },
+        {
+          "label": "<从代码库实际技术栈推导>",
+          "description": "例如 前端-React / 后端-Python / 通用"
+        },
         { "label": "其他" }
       ]
     }
@@ -130,20 +135,20 @@ Keep / Kill /Pivot（第一行结论，不要开场白）
 
 ### 步骤 4：落库
 
-**Triage accepted 项** → 用 `batch_create_tasks` 批量落库（每个 item 独立 task），避免多次 Metadata 收集。
+**Triage accepted 项** → 用 `devtask_batch_create_tasks` 批量落库（每个 item 独立 task），避免多次 Metadata 收集。
 
-其余模式 → `create_dev_task` 一次性落库为原子 task。
+其余模式 → `devtask_create_task` 一次性落库为原子 task。
 
 展示卡片（title / type / priority / scope / acceptance_criteria / context_pointers），启动提示 `devtask:devtask-doit task-N`。
 
-落库后 task 初始状态为 **待评估**。**可选：** 用户确认「可以推进」→ `update_dev_task` 把状态推进到待排期，进入 frontier。
+落库后 task 初始状态为 **待评估**。**可选：** 用户确认「可以推进」→ `devtask_update_task` 把状态推进到待排期，进入 frontier。
 
 ## Hard Rules
 
 - **禁止重复落库：** 已有类似 task 先展示让用户判断
 - **>5 文件/跨层 → 升级到 `/devtask-plan`**，不硬塞
 - **禁止占位符（TBD/TODO）：** 含则 `for_agent=false` 标注未决项
-- **唯一真相源：** 走 `update_dev_task` 修改，不重新 create
+- **唯一真相源：** 走 `devtask_update_task` 修改，不重新 create
 - **攻破即报废：** 核心假设不成立则暂停回决策
 
 ## Gotchas

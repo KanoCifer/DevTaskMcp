@@ -12,8 +12,8 @@ argument-hint: [Which Task do you want to execute?<task-N>]
 
 ### 步骤 1：拿到任务
 
-有 slug → `get_dev_task_by_slug(slug, with_parent=True)` —— 若为子任务可在同一次响应里拿到 parent spec 的 context_pointers/detail，省去后续二次查询。
-没 slug → `get_frontier_tasks(limit=1)`，取第一个。返回空则告知用户"frontier 为空，没有可执行的任务"并结束。
+有 slug → `devtask_get_task(slug, with_parent=True)` —— 若为子任务可在同一次响应里拿到 parent spec 的 context_pointers/detail，省去后续二次查询。
+没 slug → `devtask_get_frontier_tasks(limit=1)`，取第一个。返回空则告知用户"frontier 为空，没有可执行的任务"并结束。
 
 拿到任务后判断：
 
@@ -34,9 +34,9 @@ argument-hint: [Which Task do you want to execute?<task-N>]
 
 先全部验证再修，修完再跑一遍，直到全部通过。
 
-所有条件通过后，用 `update_dev_task` 把状态推进到 `已完成`。
+所有条件通过后，用 `devtask_update_task` 把状态推进到 `已完成`。
 
-如果当前是子任务，用 `list_children(parent_slug)` 检查同组兄弟：全部完成 → 自动把 parent 也标 `已完成`；否则在交付中列出剩余。
+如果当前是子任务，用 `devtask_list_children(parent_slug)` 检查同组兄弟：全部完成 → 自动把 parent 也标 `已完成`；否则在交付中列出剩余。
 
 ### 步骤 5：交付
 

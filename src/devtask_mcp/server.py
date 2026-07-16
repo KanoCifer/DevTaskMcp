@@ -2,15 +2,15 @@
 
 Tools
 -----
-- list_dev_tasks      — GET  /dev-tasks   (filter + paginate, per_page cap 20)
-- get_dev_task_by_slug — GET  /dev-tasks/:slug?with_parent=true 附带父 spec
-- create_dev_task     — POST /dev-tasks
-- batch_create_tasks  — POST /dev-tasks × N（并发封装，上限 20）
-- update_dev_task     — PATCH /dev-tasks/:slug
-- get_frontier_tasks  — GET  /dev-tasks/frontier
-- list_children       — GET  /dev-tasks?kind=subtask (走客户端 parent_slug 过滤)
-- batch_update_status — POST /dev-tasks/batch-status (多 slug 批量改状态)
-- transition_plan     — 一步推 spec + 子任务到目标状态（封装 slug 拼合 + batch_status)
+- devtask_list_tasks      — GET  /dev-tasks   (filter + paginate, per_page cap 20)
+- devtask_get_task — GET  /dev-tasks/:slug?with_parent=true 附带父 spec
+- devtask_create_task     — POST /dev-tasks
+- devtask_batch_create_tasks  — POST /dev-tasks × N（并发封装，上限 20）
+- devtask_update_task     — PATCH /dev-tasks/:slug
+- devtask_get_frontier_tasks  — GET  /dev-tasks/frontier
+- devtask_list_children       — GET  /dev-tasks?kind=subtask (走客户端 parent_slug 过滤)
+- devtask_batch_update_status — POST /dev-tasks/batch-status (多 slug 批量改状态)
+- devtask_transition_plan     — 一步推 spec + 子任务到目标状态（封装 slug 拼合 + batch_status)
 
 Run with:  uv run python -m devtask_mcp.server
 """
@@ -28,7 +28,14 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from .client import DevTaskAPIError, DevTaskClient, DevTaskError
-from .models import BatchTaskRequest, TaskKind, TaskPriority, TaskScope, TaskStatus, TaskType
+from .models import (
+    BatchTaskRequest,
+    TaskKind,
+    TaskPriority,
+    TaskScope,
+    TaskStatus,
+    TaskType,
+)
 
 logger = logging.getLogger("devtask-mcp")
 
@@ -95,7 +102,7 @@ MAX_BATCH_CREATE = 20  # 与 client.MAX_PER_PAGE 同值，单写一份用于入�
 def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
     """把 BatchTaskRequest 转成 POST /dev-tasks 的 JSON body。
 
-    单一改动点：create_dev_task 与 batch_create_tasks 都经这里，
+    单一改动点：devtask_create_task 与 devtask_batch_create_tasks 都经这里，
     后端增字段时只改一处。
     """
     body: dict[str, Any] = {
@@ -127,13 +134,13 @@ def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: list_dev_tasks
+# Tool: devtask_list_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def list_dev_tasks(
+async def devtask_list_tasks(
     status: Optional[TaskStatus] = None,
     priority: Optional[TaskPriority] = None,
     task_type: Optional[TaskType] = None,
@@ -174,13 +181,13 @@ async def list_dev_tasks(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: get_dev_task_by_slug
+# Tool: devtask_get_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def get_dev_task_by_slug(slug: str, with_parent: bool = False) -> str:
+async def devtask_get_task(slug: str, with_parent: bool = False) -> str:
     """Fetch a single dev-task by its slug (task-1, task-2...).
 
     The slug is the unique, human-readable identifier for a task — use it
@@ -207,13 +214,13 @@ async def get_dev_task_by_slug(slug: str, with_parent: bool = False) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: create_dev_task
+# Tool: devtask_create_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def create_dev_task(
+async def devtask_create_task(
     title: str,
     task_type: TaskType,
     priority: TaskPriority,
@@ -270,7 +277,7 @@ async def create_dev_task(
         kind: Task role. 'spec' = 规划节点，
             'subtask' = 可执行子任务。None 时后端默认 spec。
         parent_slug: 子任务归属的 spec slug（如 "task-5"）。spec 自身
-            留 None。设置后 list_children(parent_slug) 直接索引返回子任务。
+            留 None。设置后 devtask_list_children(parent_slug) 直接索引返回子任务。
     """
     body = _task_body(
         BatchTaskRequest(
@@ -296,13 +303,13 @@ async def create_dev_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: batch_create_tasks
+# Tool: devtask_batch_create_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
+async def devtask_batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
     """Batch-create multiple dev-tasks in a single MCP round-trip.
 
     Internally dispatches all creates concurrently (asyncio.gather) and
@@ -316,7 +323,7 @@ async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
     of each other. References via ``blocked_by`` to slugs that do not
     yet exist (e.g. a sibling in the same batch) will fail on the
     backend. For execution-order dependencies, create the batch first,
-    then use ``update_dev_task`` to wire up ``blocked_by`` afterwards.
+    then use ``devtask_update_task`` to wire up ``blocked_by`` afterwards.
     ``parent_slug`` may reference an already-existing spec without
     restriction.
 
@@ -326,7 +333,7 @@ async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
 
     Args:
         tasks: List of task creation requests (1..20 items). Each item
-            uses the same fields as ``create_dev_task``: title,
+            uses the same fields as ``devtask_create_task``: title,
             task_type, priority, scope are required; all other fields
             are optional. New tasks always start at status '待评估'.
     """
@@ -341,13 +348,13 @@ async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: update_dev_task
+# Tool: devtask_update_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def update_dev_task(
+async def devtask_update_task(
     slug: str,
     title: Optional[str] = None,
     description: Optional[str] = None,
@@ -370,7 +377,7 @@ async def update_dev_task(
 
     All text fields (description, detail, acceptance_criteria, constraints,
     context_pointers) support **Markdown formatting** — conventions match
-    create_dev_task.
+    devtask_create_task.
 
     Args:
         slug: The task slug, e.g. "task-42".
@@ -379,7 +386,7 @@ async def update_dev_task(
         detail: New detail (optional). Supports Markdown.
         task_type: One of '问题', '功能需求', '优化', '技术债'.
         priority: One of 'P0 紧急', 'P1 高', 'P2 中', 'P3 低'.
-        scope: Free-form "<层>-<技术>" string (see create_dev_task docs).
+        scope: Free-form "<层>-<技术>" string (see devtask_create_task docs).
         status: One of '待评估', '待排期', '进行中', '已搁置', '已完成'.
         sort_order: Integer sort key (optional).
         due_date: ISO-8601 datetime string.
@@ -438,13 +445,13 @@ async def update_dev_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: get_frontier_tasks
+# Tool: devtask_get_frontier_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def get_frontier_tasks(limit: int = 10) -> str:
+async def devtask_get_frontier_tasks(limit: int = 10) -> str:
     """Return tasks the agent can claim next — Pocock's frontier.
 
     Frontier = tasks that are:
@@ -468,13 +475,13 @@ async def get_frontier_tasks(limit: int = 10) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: list_children
+# Tool: devtask_list_children
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def list_children(parent_slug: str) -> str:
+async def devtask_list_children(parent_slug: str) -> str:
     """Return all child tasks of a parent (spec) task.
 
     走后端 parent_slug 索引查询，直接返回所有 parent_slug == 给定
@@ -482,7 +489,7 @@ async def list_children(parent_slug: str) -> str:
     Handles pagination internally — no client-side loop needed.
     Returns the full task objects (including acceptance_criteria,
     context_pointers, etc.) so callers never need a follow-up
-    get_dev_task_by_slug per child.
+    devtask_get_task per child.
 
     Use this in skills wherever you need a parent's children: finding the
     next task to execute, aggregating sibling completion, or recursive verify.
@@ -495,20 +502,20 @@ async def list_children(parent_slug: str) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: batch_update_status
+# Tool: devtask_batch_update_status
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
+async def devtask_batch_update_status(slugs: list[str], status: TaskStatus) -> str:
     """Batch-update multiple dev-tasks to the same status in one call.
 
     Use this to move a group of related tasks from one lifecycle state to
     another — e.g. after planning, flip a spec + all its subtasks from
     '待评估' to '待排期' in a single round-trip.
 
-    后端未做状态机校验，任意 → 任意都允许（与单条 update_dev_task 一致）。
+    后端未做状态机校验，任意 → 任意都允许（与单条 devtask_update_task 一致）。
     已处于目标状态的任务会被跳过，不触发多余的 DB 写。
 
     Args:
@@ -522,19 +529,21 @@ async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: transition_plan
+# Tool: devtask_transition_plan
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def transition_plan(parent_slug: str, status: TaskStatus = "待排期") -> str:
+async def devtask_transition_plan(
+    parent_slug: str, status: TaskStatus = "待排期"
+) -> str:
     """一步把 spec + 所有子任务翻到目标状态（默认 待排期）。
 
     典型场景：devtask-plan 产出后，把 spec 和它的子任务从「待评估」
     批量推进到「待排期」，让它们出现在 frontier 里可被领取。
 
-    内部实现：list_children(parent_slug) 取全部子任务 slug → 拼上
+    内部实现：devtask_list_children(parent_slug) 取全部子任务 slug → 拼上
     parent 自身 → 调 batch_status 一次性写入。
 
     后端未做状态机校验，任意 → 任意都允许。

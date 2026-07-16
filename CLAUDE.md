@@ -56,4 +56,4 @@ Skills live in the repo-root `skills/` directory (`skills/devtask-plan/`, `skill
 - `per_page` is capped at 20 regardless of caller input.
 - HTTP timeout: 15.0 s.
 - A single long-lived `DevTaskClient` lives at module level — safe because FastMCP stdio runs one server per agent session.
-- Spec is the single source of truth: once created, tasks are mutated via `update_dev_task`; execution appends decisions to the `detail` field.
+- Spec is the single source of truth: once created, tasks are mutated via `devtask_update_task`; execution appends decisions to the `detail` field.

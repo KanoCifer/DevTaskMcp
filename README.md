@@ -160,7 +160,7 @@ cp .env.example .env
 
 枚举值使用 Go 后端期望的**中文字面量**——不要使用英文键。
 
-**字段语义分离：** `parent_slug` 承载子→父的结构归属（`list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。两者不再混用。
+**字段语义分离：** `parent_slug` 承载子→父的结构归属（`devtask_list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。两者不再混用。
 
 ## 目录结构
 
@@ -192,7 +192,7 @@ DevTaskMcp/
 - **HTTP 超时：** 15.0 秒。
 - **单例长连接 client** 在模块级别——安全，因为 FastMCP stdio 每个 agent session 只运行一个 server。
 - **Slug 是规范的人类 ID**——在所有 UI、对话和 MCP 工具引用中使用 `task-N`。后端已全面 slug 化，不再接受 ObjectID 输入。
-- **`kind` / `parent_slug` 语义分离：** `parent_slug` 承载子→父的结构归属（`list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。
+- **`kind` / `parent_slug` 语义分离：** `parent_slug` 承载子→父的结构归属（`devtask_list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。
 
 ## License
 
