@@ -6,44 +6,37 @@ argument-hint: [Which Task do you want to execute?<task-N>]
 
 # devtask-doit
 
-**关键词：execute。** 每次运行把一个可执行任务从`当前状态`推进到`已完成`——读规格、看上下文、实现、逐条验证验收条件、交付。一次运行要么完成任务，要么暴露一个具体 blocker（然后停下来）。
+**关键词：execute。** 每次运行把一个可执行任务从当前状态推进到已完成。
 
-## 步骤
+## 流程
 
-### 步骤 1：拿到任务
+### 1. 拿到任务
 
-有 slug → `devtask_get_task(slug, with_parent=True)` —— 若为子任务可在同一次响应里拿到 parent spec 的 context_pointers/detail，省去后续二次查询。
-没 slug → `devtask_get_frontier_tasks(limit=1)`，取第一个。返回空则告知用户"frontier 为空，没有可执行的任务"并结束。
+有 slug → `devtask_get_task(slug, with_parent=True)`。无 slug → `devtask_get_frontier_tasks(limit=1)`（空则告知结束）。
 
-拿到任务后判断：
+`blocked_by` 非空 → 检查 blocker 状态：未完成则建议先执行 blocker。
 
-- **`blocked_by` 非空** → 存在同层前置依赖。检查每个 blocker 状态：未完成则建议先执行 blocker，已完成则正常继续。
-- **`blocked_by` 为空** → 正常继续。
+### 2. 读上下文
 
-### 步骤 2：读上下文
+按 `context_pointers` 读代码/文档。不靠记忆。
 
-按 `context_pointers` 读代码 / 文档。**不靠记忆，靠读文件**。
+### 3. 执行
 
-### 步骤 3：执行
+按 spec 的 constraints 实现。改动紧贴 spec，不顺手重构。
 
-按 spec 的 `constraints` 红线内实现功能，改动紧贴 spec，不顺手重构
+### 4. 验证 + 更新
 
-### 步骤 4：验证 + 更新状态
+逐条检查 acceptance_criteria。先全部检查再修，修完重跑直到全过。
 
-**逐条验证 acceptance_criteria**
+全部通过 → `devtask_update_task` 推进到已完成。
 
-先全部验证再修，修完再跑一遍，直到全部通过。
+子任务：`devtask_list_children(parent_slug)` 检查兄弟。全部完成 → parent 也标已完成。
 
-所有条件通过后，用 `devtask_update_task` 把状态推进到 `已完成`。
+### 5. 交付
 
-如果当前是子任务，用 `devtask_list_children(parent_slug)` 检查同组兄弟：全部完成 → 自动把 parent 也标 `已完成`；否则在交付中列出剩余。
+1. 当前任务：slug + 状态
+2. 后续：未完成兄弟 → 建议下一个 slug；parent 完成 → "spec 已完成"
 
-### 步骤 5：交付
+## Rules
 
-输出给用户：
-
-1. **当前任务**：slug + 状态
-2. **后续动作**：
-   - 有未完成的兄弟子任务 → 建议下一个执行 slug
-   - parent 已全部完成 → "spec 已完成"
-   - 有任务被当前任务阻塞 → 列出下一个可执行的 task
+- **Source of truth** — 走 `update_task` 修改，不重新 create
