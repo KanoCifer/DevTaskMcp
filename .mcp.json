@@ -4,6 +4,7 @@
       "command": "uv",
       "args": [
         "run",
+        "--directory",
         "${CLAUDE_PLUGIN_ROOT}",
         "python",
         "-m",
