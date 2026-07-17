@@ -15,8 +15,6 @@ argument-hint:
 
 ### 1. 探索
 
-先 `devtask_list_tasks` 查重。从代码捞事实，不问用户。
-
 - 模块名 → codegraph_explore / Read / grep
 - "接 XXX 功能" → 找对应 endpoint / handler / service
 - 涉及框架能力时优先查官方方案
