@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_BASE = os.environ.get("DEVTASK_API_BASE", "https://api.kanocifer.chat/api/v3")
+API_BASE = os.environ.get("DEVTASK_API_BASE", "https://api.kanocifer.chat/v3")
 API_KEY = os.environ.get("DEVTASK_API_KEY", "")
 
 MAX_PER_PAGE = 20
@@ -175,7 +175,11 @@ class DevTaskClient:
         for idx, (body, result) in enumerate(zip(items, results)):
             title = body.get("title", "")
             if isinstance(result, Exception):
-                msg = result.message if isinstance(result, DevTaskAPIError) else str(result)
+                msg = (
+                    result.message
+                    if isinstance(result, DevTaskAPIError)
+                    else str(result)
+                )
                 failed.append({"index": idx, "title": title, "error": msg})
             else:
                 succeeded.append(
@@ -203,9 +207,7 @@ class DevTaskClient:
             "POST", "/dev-tasks/batch-status", json={"slugs": slugs, "status": status}
         )
 
-    async def transition_plan(
-        self, parent_slug: str, status: str = "待排期"
-    ) -> dict:
+    async def transition_plan(self, parent_slug: str, status: str = "待排期") -> dict:
         """把 spec + 所有子任务一次性翻到目标状态。
 
         1. 用 list_children 拿全部子任务 slug；
