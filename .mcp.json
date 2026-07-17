@@ -2,7 +2,13 @@
   "mcpServers": {
     "devtask": {
       "command": "uv",
-      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "python", "-m", "devtask_mcp.server"]
+      "args": [
+        "run",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "python",
+        "-m",
+        "devtask_mcp.server"
+      ]
     }
   }
 }

@@ -1,11 +1,11 @@
 [project]
 name = "devtask-mcp"
-version = "2.0.0"
+version = "2.0.1"
 description = "MCP server exposing your kanocifer.chat dev-task API as tools for agents."
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=3.4.4",
-    "httpx>=0.27.0",
+    "httpx[socks]>=0.27.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
 ]
