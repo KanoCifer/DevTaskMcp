@@ -1,6 +1,6 @@
 ---
 name: devtask-grill
-description: '在正式规划前深度探讨方案选型、权衡和风险——先聊清楚再决定怎么做。当用户有一个模糊想法、问题或需求但还不确定具体方案时使用。典型触发："我想做个 X，不知道怎么做"、"探讨一下这个问题的几种解法"、"分析一下几种方案的优劣"、"这个需求有什么方案"。不适合：需求已经很明确、改什么怎么改都清楚（直接用 devtask-plan/devtask-simple）。'
+description: "在正式规划前深度探讨方案选型、权衡和风险——先聊清楚再决定怎么做。"
 argument-hint:
   [Problem / feature / idea to explore and discuss solution approaches]
 ---

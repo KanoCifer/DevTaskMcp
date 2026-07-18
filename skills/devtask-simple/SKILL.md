@@ -2,6 +2,7 @@
 name: devtask-simple
 description: '为简单任务（小功能、bug fix、小优化）快速探索代码、形成方案、落库为一个可执行 task（for_agent=true, 原子粒度）。当用户抛出预计改动 ≤5 文件、不需要拆分为多个子任务的小意图时使用。典型触发："修一下 X 的 bug"、"加个 Y 按钮"、"这段代码能不能优化"。不适合：跨层改动、3+ 独立诉求、架构决策（用 devtask-plan）；价值/判断类（Evaluation 模式可覆盖）。'
 argument-hint: [Brief description of the small task, bug fix, or improvement]
+disable-model-invocation: true
 ---
 
 # devtask-simple

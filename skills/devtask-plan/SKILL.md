@@ -3,6 +3,7 @@ name: devtask-plan
 description: '调研需求形成 spec，再拆解为多个可执行的具体 task（输出 = spec + 子任务树）。当用户抛出一个预计改动 >5 文件、或需要跨层/多步骤的需求/功能/想法时使用——先明确做什么、怎么做，再落库为 spec + 子任务树。典型触发："做个 X 功能"、"规划一下这个需求"、"我有个想法想拆成几个 task"。不适合：简单的小修/小加/单文件改动（用 devtask-simple）；价值/判断类（用 devtask-simple 的 Evaluation 模式）。'
 argument-hint:
   [Requirement / feature / idea to be specified and broken into tasks]
+disable-model-invocation: true
 ---
 
 # devtask-plan

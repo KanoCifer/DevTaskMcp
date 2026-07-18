@@ -2,6 +2,7 @@
 name: devtask-doit
 description: '端到端执行一个可执行的（for_agent=true）dev-task。当用户说"做 task-N"、"执行任务"、"work on the next task"、"do task-42"，或给出一个 slug 来执行时使用。无参数时领取最前排的 frontier 任务。遇到 parent task 时拒绝执行并引导到子任务。'
 argument-hint: [Which Task do you want to execute?<task-N>]
+disable-model-invocation: true
 ---
 
 # devtask-doit

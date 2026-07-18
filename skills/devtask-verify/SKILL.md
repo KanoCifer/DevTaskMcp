@@ -2,6 +2,7 @@
 name: devtask-verify
 description: '对照实际代码和运行时行为验证 dev-task 的验收条件。当用户说"verify task-N"、"check task-42"、"does task-7 pass?"、"验收 task-N"、"task 验收通过了吗"、"这个 spec 完了吗"，或询问某任务的验收条件是否满足时使用。对 parent task（kind=spec）会自动递归验证所有子任务。与 /devtask-doit（执行任务）和 /devtask-plan（创建任务）配套。对于没有 task slug 的通用代码变更验证，请用内置的 /verify。'
 argument-hint: [task slug to verify, e.g. task-N]
+disable-model-invocation: true
 ---
 
 # devtask-verify
