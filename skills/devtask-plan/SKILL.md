@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # devtask-plan
 
-把模糊需求变成 **spec（做什么 + 方案）** 和一组可执行的具体 task。
+把模糊需求变成 **spec（做什么 + 方案）** 和一组可执行的具体 task，并使用`mcp__devtask__*`工具落库追踪。
 
 **核心：** spec → tasks。先达成共享理解，再拆为独立可执行的子任务。
 

@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # devtask-simple
 
-把简单意图快速变成**一个落库的可执行 task**（`for_agent=true`、无 parent、原子粒度）。
+把简单意图快速变成**一个落库的可执行 task**，调用`mcp__devtask__*`相关工具落库追踪。
 
 ## 模式选择
 
