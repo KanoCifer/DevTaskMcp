@@ -1,6 +1,6 @@
 {
   "name": "devtask",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
   "author": {
     "name": "Kuroome",
