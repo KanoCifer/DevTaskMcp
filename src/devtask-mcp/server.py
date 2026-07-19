@@ -1,20 +1,3 @@
-"""FastMCP server exposing tools over stdio.
-
-Tools
------
-- devtask_list_tasks      — GET  /dev-tasks   (filter + paginate, per_page cap 20)
-- devtask_get_task — GET  /dev-tasks/:slug?with_parent=true 附带父 spec
-- devtask_create_task     — POST /dev-tasks
-- devtask_batch_create_tasks  — POST /dev-tasks × N（并发封装，上限 20）
-- devtask_update_task     — PATCH /dev-tasks/:slug
-- devtask_get_frontier_tasks  — GET  /dev-tasks/frontier
-- devtask_list_children       — GET  /dev-tasks?kind=subtask (走客户端 parent_slug 过滤)
-- devtask_batch_update_status — POST /dev-tasks/batch-status (多 slug 批量改状态)
-- devtask_transition_plan     — 一步推 spec + 子任务到目标状态（封装 slug 拼合 + batch_status)
-
-Run with:  uv run python -m devtask_mcp.server
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -32,7 +15,6 @@ from .models import (
     BatchTaskRequest,
     TaskKind,
     TaskPriority,
-    TaskScope,
     TaskStatus,
     TaskType,
 )
@@ -102,7 +84,7 @@ MAX_BATCH_CREATE = 20  # 与 client.MAX_PER_PAGE 同值，单写一份用于入�
 def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
     """把 BatchTaskRequest 转成 POST /dev-tasks 的 JSON body。
 
-    单一改动点：devtask_create_task 与 devtask_batch_create_tasks 都经这里，
+    单一改动点：create_task 与 batch_create_tasks 都经这里，
     后端增字段时只改一处。
     """
     body: dict[str, Any] = {
@@ -134,13 +116,13 @@ def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_list_tasks
+# Tool: list_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_list_tasks(
+async def list_tasks(
     status: Optional[TaskStatus] = None,
     priority: Optional[TaskPriority] = None,
     task_type: Optional[TaskType] = None,
@@ -152,8 +134,8 @@ async def devtask_list_tasks(
 ) -> str:
     """List dev-tasks with optional filters. Results are JSON-serialized.
 
-        Args: see type hints for field values and allowed strings.
-            per_page: capped at 20.
+    Args: see type hints for field values and allowed strings.
+        per_page: capped at 20.
     """
     raw = await client.list_tasks(
         status=status,
@@ -169,31 +151,31 @@ async def devtask_list_tasks(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_get_task
+# Tool: get_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_get_task(slug: str, with_parent: bool = False) -> str:
+async def get_task(slug: str, with_parent: bool = False) -> str:
     """Fetch a single task by slug. Returns all fields (spec, deps, parent link).
 
-        Args:
-            slug: e.g. "task-42".
-            with_parent: When True, includes parent spec data for subtasks.
+    Args:
+        slug: e.g. "task-42".
+        with_parent: When True, includes parent spec data for subtasks.
     """
     raw = await client.get_task_by_slug(slug, with_parent=with_parent)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_create_task
+# Tool: create_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_create_task(
+async def create_task(
     title: str,
     task_type: TaskType,
     priority: TaskPriority,
@@ -211,14 +193,14 @@ async def devtask_create_task(
 ) -> str:
     """Create a dev-task (status: 待评估). Response includes a slug for references.
 
-        Text fields (description, detail, acceptance_criteria, constraints,
-        context_pointers) support Markdown. title is plain text.
+    Text fields (description, detail, acceptance_criteria, constraints,
+    context_pointers) support Markdown. title is plain text.
 
-        Args:
-            scope: "<layer>-<tech>" format, e.g. "后端-Go".
-            blocked_by: Same-level deps. child→parent via parent_slug.
-            kind: "spec" (planning) or "subtask" (executable). Default: spec.
-            parent_slug: Attach as child of a spec slug.
+    Args:
+        scope: "<layer>-<tech>" format, e.g. "Backend-Go".
+        blocked_by: Same-level deps. child→parent via parent_slug.
+        kind: "spec" (planning) or "subtask" (executable). Default: spec.
+        parent_slug: Attach as child of a spec slug.
     """
     body = _task_body(
         BatchTaskRequest(
@@ -244,20 +226,20 @@ async def devtask_create_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_batch_create_tasks
+# Tool: batch_create_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
+async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
     """Batch-create 1-20 dev-tasks in one round-trip. Partial failures are reported.
 
-        blocked_by refs to same-batch slugs will fail (slugs not yet assigned).
-        Use devtask_update_task to wire deps after creation.
+    blocked_by refs to same-batch slugs will fail (slugs not yet assigned).
+    Use update_task to wire deps after creation.
 
-        Args:
-            tasks: 1-20 items, same fields as devtask_create_task.
+    Args:
+        tasks: 1-20 items, same fields as create_task.
     """
     if len(tasks) > MAX_BATCH_CREATE:
         raise ToolError(
@@ -270,13 +252,13 @@ async def devtask_batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_update_task
+# Tool: update_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_update_task(
+async def update_task(
     slug: str,
     title: Optional[str] = None,
     description: Optional[str] = None,
@@ -296,7 +278,7 @@ async def devtask_update_task(
     parent_slug: Optional[str] = None,
 ) -> str:
     """Partially update a dev-task. Omitted fields left unchanged.
-        Text fields support Markdown (same conventions as devtask_create_task).
+    Text fields support Markdown (same conventions as create_task).
     """
     body: dict[str, Any] = {}
     if title is not None:
@@ -337,76 +319,74 @@ async def devtask_update_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_get_frontier_tasks
+# Tool: get_frontier_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_get_frontier_tasks(limit: int = 10) -> str:
+async def get_frontier_tasks(limit: int = 10) -> str:
     """Return for_agent=true subtasks in 待排期, sorted by sort_order ASC.
-        Use this to find the next task ready to work.
+    Use this to find the next task ready to work.
 
-        Args:
-            limit: Max tasks (default 10).
+    Args:
+        limit: Max tasks (default 10).
     """
     raw = await client.find_frontier(limit=limit)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_list_children
+# Tool: list_children
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_list_children(parent_slug: str) -> str:
+async def list_children(parent_slug: str) -> str:
     """Return all child tasks (kind=subtask) of a parent spec. Full task objects.
-        No pagination loop needed on client side.
+    No pagination loop needed on client side.
 
-        Args:
-            parent_slug: The spec slug, e.g. "task-42".
+    Args:
+        parent_slug: The spec slug, e.g. "task-42".
     """
     raw = await client.find_children(parent_slug)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_batch_update_status
+# Tool: batch_update_status
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_batch_update_status(slugs: list[str], status: TaskStatus) -> str:
+async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
     """Batch-update multiple tasks to the same status in one call.
-        Tasks already at target status are skipped.
+    Tasks already at target status are skipped.
 
-        Args:
-            slugs: 1-20 task slugs.
-            status: One of the TaskStatus enum values.
+    Args:
+        slugs: 1-20 task slugs.
+        status: One of the TaskStatus enum values.
     """
     raw = await client.batch_status(slugs, status)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
 # -------------------------------------------------------------------------- #
-# Tool: devtask_transition_plan
+# Tool: transition_plan
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
 @_handle_errors
-async def devtask_transition_plan(
-    parent_slug: str, status: TaskStatus = "待排期"
-) -> str:
+async def transition_plan(parent_slug: str, status: TaskStatus = "待排期") -> str:
     """Move spec + all its subtasks to target status (default: 待排期).
-        Combines list_children + batch_status in one call.
+    Combines list_children + batch_status in one call.
 
-        Args:
-            parent_slug: The spec slug.
-            status: Target status, default "待排期".
+    Args:
+        parent_slug: The spec slug.
+        status: Target status, default "待排期".
     """
     raw = await client.transition_plan(parent_slug, status)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
@@ -421,4 +401,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(mcp.run_stdio_async())
     except KeyboardInterrupt:
-        pass
+        exit(0)

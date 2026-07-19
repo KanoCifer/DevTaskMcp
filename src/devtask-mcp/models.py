@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
 # Enums — string literals matching the Go backend's Chinese constants.
@@ -61,7 +61,6 @@ class DevTaskOut(BaseModel):
     # with_parent=true 且 parent_slug 非空时返回的父 spec 数据。
     # 自引用 Optional —— 无父或未请求时为 None。
     parent: Optional["DevTaskOut"] = None
-
 
 
 # ---------------------------------------------------------------------------

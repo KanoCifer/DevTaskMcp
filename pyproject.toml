@@ -1,6 +1,6 @@
 [project]
 name = "devtask-mcp"
-version = "2.0.1"
+version = "2.3.0"
 description = "MCP server exposing your kanocifer.chat dev-task API as tools for agents."
 requires-python = ">=3.11"
 dependencies = [
@@ -15,4 +15,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/devtask_mcp"]
+packages = ["src/devtask-mcp"]

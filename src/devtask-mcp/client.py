@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Optional
+from typing import Optional, cast
 
 import httpx
 from dotenv import load_dotenv
@@ -51,7 +51,7 @@ def _headers() -> dict[str, str]:
     }
 
 
-def _unwrap(payload: dict) -> dict | list:
+def _unwrap(payload: dict) -> dict | list | None:
     """Strip {code, message, data} — return `data`."""
     if payload.get("code", 0) != 0:
         raise DevTaskAPIError(status=0, message=payload.get("message", "unknown error"))
@@ -100,7 +100,10 @@ class DevTaskClient:
 
         if resp.status_code >= 400:
             raise DevTaskAPIError(status=resp.status_code, message=resp.text)
-        return _unwrap(resp.json())
+        result = _unwrap(resp.json())
+        if result is None:
+            raise DevTaskAPIError(status=0, message="API 返回空数据")
+        return result
 
     # ------------------------------------------------------------------ list
 
@@ -133,7 +136,7 @@ class DevTaskClient:
         if for_agent is not None:
             params["for_agent"] = str(for_agent).lower()
 
-        return await self._request("GET", "/dev-tasks", params=params)
+        return cast(dict, await self._request("GET", "/dev-tasks", params=params))
 
     # ------------------------------------------------------------------- get
 
@@ -145,12 +148,12 @@ class DevTaskClient:
         询。默认 False 保持单次查询的轻量行为。
         """
         params = {"with_parent": "true"} if with_parent else None
-        return await self._request("GET", f"/dev-tasks/{slug}", params=params)
+        return cast(dict, await self._request("GET", f"/dev-tasks/{slug}", params=params))
 
     # ----------------------------------------------------------------- create
 
     async def create_task(self, body: dict) -> dict:
-        return await self._request("POST", "/dev-tasks", json=body)
+        return cast(dict, await self._request("POST", "/dev-tasks", json=body))
 
     async def batch_create_tasks(self, items: list[dict]) -> dict:
         """并发创建多个任务，单次上限 20 条（MAX_PER_PAGE）。
@@ -194,7 +197,7 @@ class DevTaskClient:
     # ----------------------------------------------------------------- update
 
     async def update_task(self, slug: str, body: dict) -> dict:
-        return await self._request("PATCH", f"/dev-tasks/{slug}", json=body)
+        return cast(dict, await self._request("PATCH", f"/dev-tasks/{slug}", json=body))
 
     # ------------------------------------------------------ batch status
 
@@ -203,9 +206,9 @@ class DevTaskClient:
 
         返回 { "succeeded": [...], "failed": { "slug": "reason" } }。
         """
-        return await self._request(
+        return cast(dict, await self._request(
             "POST", "/dev-tasks/batch-status", json={"slugs": slugs, "status": status}
-        )
+        ))
 
     async def transition_plan(self, parent_slug: str, status: str = "待排期") -> dict:
         """把 spec + 所有子任务一次性翻到目标状态。

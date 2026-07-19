@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
-    "version": "2.2.1"
+    "version": "2.3.0"
   },
   "plugins": [
     {
       "name": "devtask",
       "source": "./",
       "description": "Agent-native dev task board with 3 skills: devtask-plan (investigate needs into well-specified tasks), devtask-doit (execute tasks end-to-end), devtask-verify (verify acceptance criteria against real code).",
-      "version": "2.2.1",
+      "version": "2.3.0",
       "author": {
         "name": "Kuroome"
       },
@@ -22,9 +22,10 @@
       "category": "project-management",
       "tags": ["task", "kanban", "spec", "agent", "mcp", "frontier"],
       "skills": [
+        "./skills/devtask-gcf",
+        "./skills/devtask-grill",
         "./skills/devtask-plan",
         "./skills/devtask-doit",
-        "./skills/devtask-grill",
         "./skills/devtask-verify",
         "./skills/devtask-simple"
       ]

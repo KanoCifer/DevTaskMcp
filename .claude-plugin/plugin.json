@@ -1,6 +1,6 @@
 {
   "name": "devtask",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
   "author": {
     "name": "Kuroome",
@@ -11,6 +11,7 @@
   "license": "MIT",
   "keywords": ["task", "kanban", "spec", "agent", "mcp", "frontier"],
   "skills": [
+    "./skills/devtask-gcf",
     "./skills/devtask-grill",
     "./skills/devtask-plan",
     "./skills/devtask-doit",

@@ -8,7 +8,7 @@
         "${CLAUDE_PLUGIN_ROOT}",
         "python",
         "-m",
-        "devtask_mcp.server"
+        "devtask-mcp.server"
       ]
     }
   }
