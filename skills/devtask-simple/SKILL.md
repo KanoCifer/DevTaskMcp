@@ -37,7 +37,7 @@ disable-model-invocation: true
 
 **Evaluation：** 输出 Keep / Kill / Pivot（第一行结论，不要开场白，三条理由）。Kill 不落库；Pivot 落库新方向；Keep 落库 task。
 
-**Triage：** 每项分 Bug / Already works / Accepted / Cosmetic / Out of scope。展示分类表确认 → Accepted 用 `devtask_batch_create_tasks` 批量落库。
+**Triage：** 每项分 Bug / Already works / Accepted / Cosmetic / Out of scope。展示分类表确认 → Accepted 用 `batch_create_tasks` 批量落库。
 
 ### 落库卡片
 

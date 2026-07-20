@@ -13,7 +13,7 @@ disable-model-invocation: true
 
 ### 1. 拿到任务
 
-有 slug → `devtask_get_task(slug, with_parent=True)`。无 slug → `devtask_get_frontier_tasks(limit=1)`（空则告知结束）。
+有 slug → `get_task(slug, with_parent=True)`。无 slug → `get_frontier_tasks(limit=1)`（空则告知结束）。
 
 `blocked_by` 非空 → 检查 blocker 状态：未完成则建议先执行 blocker。
 
@@ -29,9 +29,9 @@ disable-model-invocation: true
 
 逐条检查 acceptance_criteria。先全部检查再修，修完重跑直到全过。
 
-全部通过 → `devtask_update_task` 推进到已完成。
+全部通过 → `complete_task(slug)` 标已完成（专用快捷工具，比 update_task 更明确）。
 
-子任务：`devtask_list_children(parent_slug)` 检查兄弟。全部完成 → parent 也标已完成。
+子任务：`list_children(parent_slug)` 检查兄弟。全部完成 → parent 也标已完成（同样走 `complete_task`，支持数组 slug 一次完成多个，可把 parent + 剩余兄弟一并传入）。
 
 ### 5. 交付
 
@@ -40,4 +40,4 @@ disable-model-invocation: true
 
 ## Rules
 
-- **Source of truth** — 走 `update_task` 修改，不重新 create
+- **Source of truth** — 任务状态推进统一走 `complete_task`（单 slug 或数组）；其他字段修改才用 `update_task`

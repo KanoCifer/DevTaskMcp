@@ -20,7 +20,6 @@ disable-model-invocation: true
 - "接 XXX 功能" → 找对应 endpoint / handler / service
 - 涉及框架能力时优先查官方方案
 
-**退出条件：** 知道改哪些文件、怎么改、影响范围
 **Gate：** 探索完发现 ≤5 文件且单层次 → 建议降级 `/devtask-simple`，终止
 
 ### 2. 方案 Grilling
@@ -35,7 +34,7 @@ disable-model-invocation: true
 
 ### 3. Spec 落库
 
-`devtask_create_task` 落为 parent（`for_agent=true`，避免反悔不拆时产生 dead task）。
+`create_task` 落为 parent（`for_agent=true`，避免反悔不拆时产生 dead task）。
 
 ### 4. 拆子任务
 
@@ -45,11 +44,7 @@ disable-model-invocation: true
 
 **b. 确认：** `AskUserQuestion` 打包确认拆分方案和所有子任务字段（有歧义的决策点单独追问，不混问卷）。选"不拆"时评估降级 simple。
 
-**c. 落库：** `devtask_batch_create_tasks`（kind=subtask, parent_slug=spec, for_agent=true, blocked_by=留空）。超 20 条分批。
-
-**d. 补依赖：** `devtask_update_task` 补子任务间的 blocked_by。
-
-**e. 更新 parent：** acceptance_criteria 改为 `- [ ] task-N1: ... verify 通过` 列表。parent.for_agent = false。
+**c. 落库：** `batch_create_tasks`（kind=subtask, parent_slug=spec, for_agent=true）。超 20 条分批。
 
 ### 5. 交付
 
@@ -68,7 +63,6 @@ Approved？启动：/devtask:devtask-doit task-N1
 
 - **Spec 必须拆** — 不允许只产出计划文档不落库
 - **子任务不循环依赖** — blocked_by 只指同层前置；归属用 parent_slug
-- **Parent ≠ worker** — 拆后 parent.for_agent = false
 - **Fall fast** — 核心假设不成立 → 已搁置，detail 记录原因
 - **Source of truth** — 走 `update_task` 修改，不重新 create
 - **AskUserQuestion** — 第一选项推荐值；options 必须有 label + description

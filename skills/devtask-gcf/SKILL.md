@@ -3,6 +3,7 @@ name: devtask-gcf
 description: Generate concise with Conventional Commits format
 argument-hint: [c(commit)|p(push)]
 allowed-tools: Bash(git *), AskUserQuestion
+disable-model-invocation: true
 ---
 
 **从对话上下文或暂存区中了解本次变更的内容和意图**

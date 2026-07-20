@@ -52,12 +52,13 @@ def _save_usage() -> None:
 
 
 def _count_tool(func: Callable) -> Callable:
-    """在 _handle_errors 之内再包一层,仅成功调用才计入统计。"""
+    """成功调用才计入统计,每次成功后增量刷盘(保证崩溃/强杀不丢数据)。"""
 
     @wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
         result = await func(*args, **kwargs)
         _usage_counts[func.__name__] = _usage_counts.get(func.__name__, 0) + 1
+        _save_usage()
         return result
 
     return wrapper
