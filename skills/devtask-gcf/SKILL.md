@@ -1,5 +1,5 @@
 ---
-name: gcf
+name: devtask-gcf
 description: Generate concise with Conventional Commits format
 argument-hint: [c(commit)|p(push)]
 allowed-tools: Bash(git *), AskUserQuestion

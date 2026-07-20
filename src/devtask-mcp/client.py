@@ -105,6 +105,33 @@ class DevTaskClient:
             raise DevTaskAPIError(status=0, message="API 返回空数据")
         return result
 
+    async def _request_allowing_empty(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[dict] = None,
+        json: Optional[dict] = None,
+    ) -> dict | list | None:
+        """同 _request,但允许 data:null —— 用于更新类接口(后端只回成功标志,
+        不回读对象,如 PATCH /dev-tasks/{slug} 返回 {"data":null,"message":"updated"})。
+        data:null 时返回 None 而非抛错,调用方自行处理。
+        """
+        try:
+            resp = await self._client.request(method, path, params=params, json=json)
+        except httpx.TimeoutException as exc:
+            raise DevTaskAPIError(status=0, message=f"请求超时（15s）：{exc}") from exc
+        except httpx.ConnectError as exc:
+            raise DevTaskAPIError(
+                status=0, message=f"无法连接到 {self._base}，请检查网络或 API 地址"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise DevTaskAPIError(status=0, message=f"网络错误：{exc}") from exc
+
+        if resp.status_code >= 400:
+            raise DevTaskAPIError(status=resp.status_code, message=resp.text)
+        return _unwrap(resp.json())
+
     # ------------------------------------------------------------------ list
 
     async def list_tasks(
@@ -197,7 +224,11 @@ class DevTaskClient:
     # ----------------------------------------------------------------- update
 
     async def update_task(self, slug: str, body: dict) -> dict:
-        return cast(dict, await self._request("PATCH", f"/dev-tasks/{slug}", json=body))
+        # PATCH 后端返回 data:null(只给成功标志),用 _request_allowing_empty
+        # 容忍空数据,再回查一次拿最新对象给 agent。
+        await self._request_allowing_empty("PATCH", f"/dev-tasks/{slug}", json=body)
+        data = await self._request("GET", f"/dev-tasks/{slug}")
+        return cast(dict, data)
 
     # ------------------------------------------------------ batch status
 

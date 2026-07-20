@@ -317,7 +317,7 @@ wheels = [
 
 [[package]]
 name = "devtask-mcp"
-version = "2.0.1"
+version = "2.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },

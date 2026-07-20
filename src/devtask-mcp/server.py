@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from fastmcp import FastMCP
@@ -20,6 +21,49 @@ from .models import (
 )
 
 logger = logging.getLogger("devtask-mcp")
+
+# -------------------------------------------------------------------------- #
+# 工具调用次数统计 —— 存活期内累计,退出时刷盘到 ~/.claude/devtask-mcp-usage.json
+# -------------------------------------------------------------------------- #
+
+USAGE_PATH = Path.home() / ".claude" / "devtask-mcp-usage.json"
+_usage_counts: dict[str, int] = {}
+
+
+def _load_usage() -> None:
+    global _usage_counts
+    if USAGE_PATH.exists():
+        try:
+            _usage_counts = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("usage 文件损坏,重置计数: %s", exc)
+            _usage_counts = {}
+
+
+def _save_usage() -> None:
+    try:
+        USAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        USAGE_PATH.write_text(
+            json.dumps(_usage_counts, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.error("写 usage 文件失败: %s", exc)
+
+
+def _count_tool(func: Callable) -> Callable:
+    """在 _handle_errors 之内再包一层,仅成功调用才计入统计。"""
+
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        result = await func(*args, **kwargs)
+        _usage_counts[func.__name__] = _usage_counts.get(func.__name__, 0) + 1
+        return result
+
+    return wrapper
+
+
+_load_usage()
 
 # ---------------------------------------------------------------------------
 # Server
@@ -121,6 +165,7 @@ def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def list_tasks(
     status: Optional[TaskStatus] = None,
@@ -156,6 +201,7 @@ async def list_tasks(
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def get_task(slug: str, with_parent: bool = False) -> str:
     """Fetch a single task by slug. Returns all fields (spec, deps, parent link).
@@ -174,6 +220,7 @@ async def get_task(slug: str, with_parent: bool = False) -> str:
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def create_task(
     title: str,
@@ -231,6 +278,7 @@ async def create_task(
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
     """Batch-create 1-20 dev-tasks in one round-trip. Partial failures are reported.
@@ -257,6 +305,7 @@ async def batch_create_tasks(tasks: list[BatchTaskRequest]) -> str:
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def update_task(
     slug: str,
@@ -319,11 +368,46 @@ async def update_task(
 
 
 # -------------------------------------------------------------------------- #
+# Tool: complete_task
+# -------------------------------------------------------------------------- #
+
+
+@mcp.tool()
+@_count_tool
+@_handle_errors
+async def complete_task(slug: str | list[str]) -> str:
+    """把单个或多个任务标记为 已完成。
+
+    Args:
+        slug: e.g. "task-42"；或多个 ["task-42","task-43"]。
+    """
+    slugs = [slug] if isinstance(slug, str) else slug
+    results = await asyncio.gather(
+        *[client.update_task(s, {"status": "已完成"}) for s in slugs],
+        return_exceptions=True,
+    )
+    succeeded: list[str] = []
+    failed: list[dict] = []
+    for s, r in zip(slugs, results):
+        if isinstance(r, Exception):
+            msg = r.message if isinstance(r, DevTaskAPIError) else str(r)
+            failed.append({"slug": s, "error": msg})
+        else:
+            succeeded.append(s)
+    return json.dumps(
+        {"succeeded": succeeded, "failed": failed},
+        ensure_ascii=False,
+        default=_to_jsonable,
+    )
+
+
+# -------------------------------------------------------------------------- #
 # Tool: get_frontier_tasks
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def get_frontier_tasks(limit: int = 10) -> str:
     """Return for_agent=true subtasks in 待排期, sorted by sort_order ASC.
@@ -342,6 +426,7 @@ async def get_frontier_tasks(limit: int = 10) -> str:
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def list_children(parent_slug: str) -> str:
     """Return all child tasks (kind=subtask) of a parent spec. Full task objects.
@@ -360,6 +445,7 @@ async def list_children(parent_slug: str) -> str:
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
     """Batch-update multiple tasks to the same status in one call.
@@ -379,6 +465,7 @@ async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
 
 
 @mcp.tool()
+@_count_tool
 @_handle_errors
 async def transition_plan(parent_slug: str, status: TaskStatus = "待排期") -> str:
     """Move spec + all its subtasks to target status (default: 待排期).
@@ -401,4 +488,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(mcp.run_stdio_async())
     except KeyboardInterrupt:
-        exit(0)
+        pass
+    finally:
+        _save_usage()  # 进程退出时把累计计数刷盘
+    exit(0)
