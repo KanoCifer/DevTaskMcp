@@ -1,7 +1,7 @@
 {
   "name": "devtask",
-  "version": "2.4.1",
-  "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, verify acceptance criteria. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
+  "version": "2.4.2",
+  "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, review code + acceptance criteria against real code. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
   "author": {
     "name": "Kuroome",
     "url": "https://github.com/KanoCifer"
@@ -15,7 +15,7 @@
     "./skills/devtask-grill",
     "./skills/devtask-plan",
     "./skills/devtask-doit",
-    "./skills/devtask-verify",
+    "./skills/devtask-review",
     "./skills/devtask-simple"
   ],
   "mcpServers": "./.mcp.json"
