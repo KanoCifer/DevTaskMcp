@@ -1,6 +1,6 @@
 ---
 name: devtask-doit
-description: '端到端执行一个可执行的（for_agent=true）dev-task。当用户说"做 task-N"、"执行任务"、"work on the next task"、"do task-42"，或给出一个 slug 来执行时使用。无参数时领取最前排的 frontier 任务。遇到 parent task 时拒绝执行并引导到子任务。'
+description: '端到端执行一个可执行的（for_agent=true）dev-task。当用户说"做 task-N"、"执行任务"、"work on the next task"、"do task-42"，或给出一个 slug 来执行时使用。遇到 parent task 时拒绝执行并引导到子任务。'
 argument-hint: [Which Task do you want to execute?<task-N>]
 disable-model-invocation: true
 ---
@@ -13,7 +13,7 @@ disable-model-invocation: true
 
 ### 1. 拿到任务
 
-有 slug → `get_task(slug, with_parent=True)`。无 slug → `get_frontier_tasks(limit=1)`（空则告知结束）。
+`get_task(slug, with_parent=True)`。
 
 `blocked_by` 非空 → 检查 blocker 状态：未完成则建议先执行 blocker。
 

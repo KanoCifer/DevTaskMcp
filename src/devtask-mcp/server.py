@@ -161,42 +161,6 @@ def _task_body(t: BatchTaskRequest) -> dict[str, Any]:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: list_tasks
-# -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_count_tool
-@_handle_errors
-async def list_tasks(
-    status: Optional[TaskStatus] = None,
-    priority: Optional[TaskPriority] = None,
-    task_type: Optional[TaskType] = None,
-    kind: Optional[TaskKind] = None,
-    for_agent: Optional[bool] = None,
-    include_deleted: bool = False,
-    page: int = 1,
-    per_page: int = 10,
-) -> str:
-    """List dev-tasks with optional filters. Results are JSON-serialized.
-
-    Args: see type hints for field values and allowed strings.
-        per_page: capped at 20.
-    """
-    raw = await client.list_tasks(
-        status=status,
-        priority=priority,
-        task_type=task_type,
-        kind=kind,
-        for_agent=for_agent,
-        include_deleted=include_deleted,
-        page=page,
-        per_page=per_page,
-    )
-    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
-
-
-# -------------------------------------------------------------------------- #
 # Tool: get_task
 # -------------------------------------------------------------------------- #
 
@@ -403,25 +367,6 @@ async def complete_task(slug: str | list[str]) -> str:
 
 
 # -------------------------------------------------------------------------- #
-# Tool: get_frontier_tasks
-# -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_count_tool
-@_handle_errors
-async def get_frontier_tasks(limit: int = 10) -> str:
-    """Return for_agent=true subtasks in 待排期, sorted by sort_order ASC.
-    Use this to find the next task ready to work.
-
-    Args:
-        limit: Max tasks (default 10).
-    """
-    raw = await client.find_frontier(limit=limit)
-    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
-
-
-# -------------------------------------------------------------------------- #
 # Tool: list_children
 # -------------------------------------------------------------------------- #
 
@@ -437,46 +382,6 @@ async def list_children(parent_slug: str) -> str:
         parent_slug: The spec slug, e.g. "task-42".
     """
     raw = await client.find_children(parent_slug)
-    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
-
-
-# -------------------------------------------------------------------------- #
-# Tool: batch_update_status
-# -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_count_tool
-@_handle_errors
-async def batch_update_status(slugs: list[str], status: TaskStatus) -> str:
-    """Batch-update multiple tasks to the same status in one call.
-    Tasks already at target status are skipped.
-
-    Args:
-        slugs: 1-20 task slugs.
-        status: One of the TaskStatus enum values.
-    """
-    raw = await client.batch_status(slugs, status)
-    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
-
-
-# -------------------------------------------------------------------------- #
-# Tool: transition_plan
-# -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_count_tool
-@_handle_errors
-async def transition_plan(parent_slug: str, status: TaskStatus = "待排期") -> str:
-    """Move spec + all its subtasks to target status (default: 待排期).
-    Combines list_children + batch_status in one call.
-
-    Args:
-        parent_slug: The spec slug.
-        status: Target status, default "待排期".
-    """
-    raw = await client.transition_plan(parent_slug, status)
     return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 

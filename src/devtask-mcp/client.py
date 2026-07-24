@@ -230,49 +230,6 @@ class DevTaskClient:
         data = await self._request("GET", f"/dev-tasks/{slug}")
         return cast(dict, data)
 
-    # ------------------------------------------------------ batch status
-
-    async def batch_status(self, slugs: list[str], status: str) -> dict:
-        """POST /dev-tasks/batch-status —— 把多个 slug 翻到同一状态。
-
-        返回 { "succeeded": [...], "failed": { "slug": "reason" } }。
-        """
-        return cast(dict, await self._request(
-            "POST", "/dev-tasks/batch-status", json={"slugs": slugs, "status": status}
-        ))
-
-    async def transition_plan(self, parent_slug: str, status: str = "待排期") -> dict:
-        """把 spec + 所有子任务一次性翻到目标状态。
-
-        1. 用 list_children 拿全部子任务 slug；
-        2. 把 parent 也并入 slug 列表；
-        3. 调 batch_status 一次搞定。
-
-        返回值同 batch_status：{ succeeded, failed }。
-        """
-        slugs = [parent_slug]
-        children = await self.find_children(parent_slug)
-        for task in children:
-            child_slug = task.get("slug") if isinstance(task, dict) else None
-            if child_slug:
-                slugs.append(child_slug)
-        return await self.batch_status(slugs, status)
-
-    # --------------------------------------------------------------- frontier
-
-    async def find_frontier(self, limit: int = 10) -> list:
-        """Return agent-claimable tasks (for_agent=true + backlog + unblocked)."""
-        data = await self._request(
-            "GET", "/dev-tasks/frontier", params={"limit": limit}
-        )
-        if isinstance(data, list):
-            return data
-        # Backend may wrap as { "data": [...] }; handle both shapes.
-        if isinstance(data, dict) and "data" in data:
-            inner = data["data"]
-            return inner if isinstance(inner, list) else []
-        return []
-
     # --------------------------------------------------------------- children
 
     async def find_children(self, parent_slug: str) -> list:
