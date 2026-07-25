@@ -66,6 +66,5 @@ Step-by-step implementation plan.
   error.
 - Maximum size: 2 MB, same as the legacy `detail_file` cap.
 - The file (`document_file`) must live under `/tmp` (the MCP server
-  enforces this for security).  `create_task` and `update_task` accept
-  `detail` as an inline string parameter — only
-  `create_task_document` reads from a file.
+  enforces this for security).  `create_task(.., document_file=...)`
+  reads the file and parses its YAML front matter automatically.

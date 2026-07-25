@@ -55,7 +55,7 @@ disable-model-invocation: true
 
     - spec 是规划节点（kind=spec），subtask 是可执行单元（kind=subtask）
     - `parent_slug` 承载结构归属，`blocked_by` 承载同层执行顺序依赖
-    - 状态推进统一走 `update_task(slug, status=...)` / `complete_task`；其它字段修改走 `update_task(slug, detail=...)`
+    - 状态推进统一走 `update_task(slug, status=...)` 或 `update_task(slugs=[...])`；其它字段修改走 `update_task(slug, detail=...)`
 
 **写入方式：** 追加到 CLAUDE.md 末尾（若已有 devtask 章节则不重复写入）。写入后告知用户已添加引导。
 

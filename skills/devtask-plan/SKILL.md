@@ -9,9 +9,8 @@ disable-model-invocation: true
 # devtask-plan
 
 把模糊需求变成 **spec** 和一组可执行的子任务。spec 用
-`create_task_document`（文件式 YAML front matter + Markdown 章节）
+`create_task(document_file=...)`（文件式 YAML front matter + Markdown 章节）
 落库，每个 subtask 用 `create_task`（内联 detail 参数）创建。
-**不要在对话里输出完整 spec 正文** — 写一次文件即可。
 
 ## 流程
 
@@ -42,7 +41,7 @@ spec 只放公共内容（Goal / Decisions / Constraints / Context Pointers）�
 ### 4. 落库 spec
 
 ```text
-create_task_document(document_file="/tmp/devtask-plan-<短名称>.md")
+create_task(document_file="/tmp/devtask-plan-<短名称>.md")
 ```
 
 记下返回的 `slug`（即 spec slug）。
@@ -64,7 +63,7 @@ create_task(
 )
 ```
 
-每个 subtask 只放增量内容（Goal / Plan / Acceptance Criteria），重复的不抄父。**不要在对话里拼好整篇 Markdown 再调 MCP** — 直接在 detail 参数传简洁正文即可。
+每个 subtask 只放增量内容（Goal / Plan / Acceptance Criteria），重复的不抄父。
 
 ### 6. 交付
 
@@ -84,6 +83,7 @@ Approved? 启动：/devtask:devtask-doit task-N1
 
 - **Spec 必须拆** — 不允许只产出计划文档不落库
 - **写一次文件** — spec 的 Task Document 写 /tmp 后不要再在对话里复述
+- **信任 MCP 视图** — detail 正文、AC 列表、context pointers 由 MCP 解析，不要重复解析或复述
 - **子任务不依赖 spec slug 以外的东西** — blocked_by 用已知 slug，不要猜
 - **父不放子任务的 Plan / AC** — 父只保留公共信息，子任务各写各的
 - **Fall fast** — 核心假设不成立 → 已搁置，detail 记录原因

@@ -10,8 +10,7 @@ disable-model-invocation: true
 把简单意图快速变成**一个落库的可执行 task**。
 
 v3 工作流：唯一长文本是 `detail`（Markdown）。方案、验收标准、约束、上下文指针
-都写在 **Task Document** 里面。Agent 在对话里只写一次文件，不再把正文复制进
-MCP 参数，也不要再在对话里复述整份文档。
+都写在 **Task Document** 里面。
 
 ## 模式选择
 
@@ -37,7 +36,7 @@ MCP 参数，也不要再在对话里复述整份文档。
 
 按模式处理，方案确定后立即落库，不拆分步骤：
 
-**Lightweight：** 列出文件路径 + 每文件改动概要。推荐方案默认采用。3+ 种真正不同路径时让用户选。→ 用 `Write` 写一份 Task Document 到 `/tmp/devtask-simple-<短名称>.md`（YAML front matter + 固定章节）→ `create_task_document(document_file=...)` → MCP 完成后只回报 slug，不要再复述正文。
+**Lightweight：** 列出文件路径 + 每文件改动概要。推荐方案默认采用。3+ 种真正不同路径时让用户选。→ 用 `Write` 写一份 Task Document 到 `/tmp/devtask-simple-<短名称>.md`（YAML front matter + 固定章节）→ `create_task(document_file=...)` → MCP 完成后只回报 slug。
 
 **Triage：** 每项分 Bug / Already works / Accepted / Cosmetic / Out of scope。展示分类表确认 → Accepted 各项逐个调 `create_task(title=..., task_type=..., priority=..., scope=..., detail="## Goal...")` 创建。不要合并成一个 task。
 
@@ -86,6 +85,5 @@ for_agent: true
 - **>5 files → upgrade** — 不硬塞 simple；方案超预期复杂也升级
 - **Simple 无 parent** — 独立可执行，不写 parent_slug
 - **Evaluation 不用于 bug** — "判断这个报错" = Lightweight 修复
-- **Source of truth** — 修改走 `update_task(slug, detail=...)`；状态类变更走 `update_task(slug, status=...)`
-- **不要在对话里复述 Task Document** — Agent 已经写过文件，再复述一次既费 token 又是 source of truth 漂移
-- **每个 Task Document 只在 /tmp 写一次** — 不在对话里拼好整篇 Markdown 再调 MCP
+- **Source of truth** — 修改走 `update_task(slug, detail=...)`；状态类变更走 `update_task(slug, status=...)` 或 `update_task(slugs=[...])`
+- **信任 MCP 视图** — detail 正文、AC 列表、context pointers 由 MCP 解析，不要重复解析或复述

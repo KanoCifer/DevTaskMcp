@@ -166,14 +166,12 @@ Context Pointers（外加 Decisions / Out of Scope）。其它结构化字段保
 
 ### MCP 工具
 
-| 工具                       | 用途                                                    |
-| -------------------------- | ------------------------------------------------------- |
-| `create_task_document`     | 读取 `/tmp` 下的 Task Document 并创建任务（spec / 简单任务） |
-| `create_task`              | 内联参数创建任务（subtask，可选 detail 传 Markdown）     |
-| `update_task`              | 修改状态字段 + 可选 detail 正文                         |
-| `complete_task`            | 标记已完成（兼容单 slug 或数组）                          |
-| `get_task(slug, view=...)` | `summary` / `execute` / `review` / `full`                |
-| `list_children`            | 永远返回 summary 记录                                    |
+| 工具                               | 用途                                                    |
+| ---------------------------------- | ------------------------------------------------------- |
+| `create_task`                      | 内联参数或 `document_file` 创建任务（取代旧的两个工具）   |
+| `update_task`                      | 修改状态字段 + 可选 detail 正文；`slugs=[]` 批量完成     |
+| `get_task(slug, view=...)`         | `summary` / `execute` / `review` / `full`                |
+| `list_children`                    | 永远返回 summary 记录                                    |
 
 ### 视图
 

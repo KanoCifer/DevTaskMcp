@@ -43,11 +43,10 @@ get_task(slug, view="execute")
 需要把决策固化进 detail 时使用 `update_task(slug, detail=...)` 修改 Decisions 章节。
 普通执行日志**不要**写回 task。
 
-全部通过 → `complete_task(slug)` 标已完成（专用快捷工具）。
+全部通过 → `update_task(slug, status="已完成")` 标已完成。
 
 子任务：`list_children(parent_slug)` 检查兄弟。全部完成 → parent 也标已完成
-（同样走 `complete_task`，支持数组 slug 一次完成多个，可把 parent + 剩余兄弟
-一并传入）。
+（走 `update_task(slugs=[...])` 批量标记，可把 parent + 剩余兄弟一并传入）。
 
 ### 5. 交付
 
@@ -56,9 +55,5 @@ get_task(slug, view="execute")
 
 ## Rules
 
-- **Source of truth** — 任务状态推进统一走 `complete_task`（单 slug 或数组）；
-  其他字段修改走 `update_task(slug, detail=...)`（替换整份 detail）
-- **不要再解析 detail 字符串** — MCP 视图已经把 `goal` / `plan` / AC / constraints
-  / context_pointers 切好了
-- **不要把 AC 文本塞进对话** — `get_task(slug, view="execute")` 已经在响应里
-  返回结构化 AC 列表
+- **Source of truth** — 任务状态推进走 `update_task(slug, status=...)`；批量走 `update_task(slugs=[...])`；其他字段修改走 `update_task(slug, detail=...)`
+- **信任 MCP 视图** — `get_task(slug, view="execute")` 返回的 `sections` 已经包含了 `goal` / `plan` / AC / constraints / context_pointers，不要自己解析或复述

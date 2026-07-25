@@ -209,7 +209,7 @@ def test_update_task_sends_detail(_patch_client):
     assert "## Goal" in body["detail"]
 
 
-def test_create_task_document_sends_compiled_body(_patch_client):
+def test_create_task_via_document_file_sends_compiled_body(_patch_client):
     doc_path = Path("/tmp/devtask-ct-create.md")
     doc_path.write_text(
         "---\n"
@@ -226,7 +226,7 @@ def test_create_task_document_sends_compiled_body(_patch_client):
     )
     try:
         payload = json.loads(
-            asyncio.run(server.create_task_document(document_file=str(doc_path)))
+            asyncio.run(server.create_task(document_file=str(doc_path)))
         )
         assert payload == {"slug": "task-1", "title": "ok"}
     finally:
@@ -248,6 +248,29 @@ def test_create_task_document_sends_compiled_body(_patch_client):
         assert legacy not in body
 
 
-def test_create_task_document_rejects_path_outside_tmp(_patch_client):
+def test_create_task_rejects_invalid_document_file(_patch_client):
     with pytest.raises(ToolError):
-        asyncio.run(server.create_task_document(document_file="/etc/passwd"))
+        asyncio.run(server.create_task(document_file="/etc/passwd"))
+
+
+def test_update_task_bulk_completes(_patch_client):
+    payload = json.loads(
+        asyncio.run(
+            server.update_task(
+                slugs=["task-1", "task-2", "task-3"],
+            )
+        )
+    )
+    assert payload["succeeded"] == ["task-1", "task-2", "task-3"]
+    assert payload["failed"] == []
+
+
+def test_update_task_rejects_slug_and_slugs(_patch_client):
+    with pytest.raises(ToolError):
+        asyncio.run(
+            server.update_task(
+                slug="task-1",
+                slugs=["task-1", "task-2"],
+                status="进行中",
+            )
+        )

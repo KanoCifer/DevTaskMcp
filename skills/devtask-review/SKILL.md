@@ -82,7 +82,7 @@ get_task(slug, view="review")
 
 ### 6. 状态修正
 
-parent：子任务 AC 全部 ✅ + 自身 AC 全部 ✅ → `complete_task` 翻到已完成。
+parent：子任务 AC 全部 ✅ + 自身 AC 全部 ✅ → `update_task(slugs=[...])` 批量翻到已完成。
 
 ### 7. 报告
 

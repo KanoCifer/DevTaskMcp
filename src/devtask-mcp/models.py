@@ -1,10 +1,4 @@
 """Pydantic models mapping the go-backend DevTask DTOs.
-
-v3: the legacy long-text fields (``description``, ``acceptance_criteria``,
-``constraints``, ``context_pointers``) still appear on the wire while the
-backend completes its migration.  This module keeps them in
-:class:`DevTaskOut` so the API client can still parse the backend
-response, but the MCP tools and view layer never surface them.
 """
 
 from __future__ import annotations
@@ -31,19 +25,11 @@ TaskKind = Literal["spec", "subtask"]
 
 
 class DevTaskOut(BaseModel):
-    """A single dev-task as returned by the API.
-
-    v3: ``detail`` is the only long-text field.  ``description``,
-    ``acceptance_criteria``, ``constraints`` and ``context_pointers``
-    are kept here purely for the wire format and should be ignored by
-    new code.  The view layer parses ``detail`` into structured
-    sections.
-    """
+    """A single dev-task as returned by the API."""
 
     id: str
     user_id: int
     title: str
-    description: Optional[str] = None
     detail: Optional[str] = None
     type: TaskType
     priority: TaskPriority
@@ -54,21 +40,11 @@ class DevTaskOut(BaseModel):
     is_deleted: bool = False
     created_at: datetime
     updated_at: datetime
-    # Spec
-    acceptance_criteria: Optional[str] = None
-    constraints: Optional[str] = None
-    context_pointers: Optional[str] = None
-    # Who / Dependencies
     for_agent: bool = False
     blocked_by: list[str] = []
-    # Slug —— task-N 格式，人类可读引用
     slug: str = ""
-    # 角色：spec / subtask；parent 自身为 spec 时为空，兼容旧数据
     kind: Optional[TaskKind] = None
-    # 子任务归属的 spec slug；spec 自身为 None
     parent_slug: Optional[str] = None
-    # with_parent=true 且 parent_slug 非空时返回的父 spec 数据。
-    # 自引用 Optional —— 无父或未请求时为 None。
     parent: Optional["DevTaskOut"] = None
 
 

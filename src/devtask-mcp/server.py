@@ -18,50 +18,6 @@ from .views import VIEWS, ViewError, render_view
 
 logger = logging.getLogger("devtask-mcp")
 
-# -------------------------------------------------------------------------- #
-# 工具调用次数统计 —— 存活期内累计,退出时刷盘到 ~/.claude/devtask-mcp-usage.json
-# -------------------------------------------------------------------------- #
-
-USAGE_PATH = Path.home() / ".claude" / "devtask-mcp-usage.json"
-_usage_counts: dict[str, int] = {}
-
-
-def _load_usage() -> None:
-    global _usage_counts
-    if USAGE_PATH.exists():
-        try:
-            _usage_counts = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("usage 文件损坏,重置计数: %s", exc)
-            _usage_counts = {}
-
-
-def _save_usage() -> None:
-    try:
-        USAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        USAGE_PATH.write_text(
-            json.dumps(_usage_counts, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except OSError as exc:
-        logger.error("写 usage 文件失败: %s", exc)
-
-
-def _count_tool(func: Callable) -> Callable:
-    """成功调用才计入统计,每次成功后增量刷盘(保证崩溃/强杀不丢数据)。"""
-
-    @wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        result = await func(*args, **kwargs)
-        _usage_counts[func.__name__] = _usage_counts.get(func.__name__, 0) + 1
-        _save_usage()
-        return result
-
-    return wrapper
-
-
-_load_usage()
-
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
@@ -166,7 +122,6 @@ def _read_temp_markdown(file_path: str) -> str:
 
 
 @mcp.tool()
-@_count_tool
 @_handle_errors
 async def get_task(
     slug: str,
@@ -202,67 +157,86 @@ async def get_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: create_task — inline detail for subtasks
+# Tool: create_task
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
-@_count_tool
 @_handle_errors
 async def create_task(
-    title: str,
-    task_type: TaskType,
-    priority: TaskPriority,
-    scope: str,
+    title: Optional[str] = None,
+    task_type: Optional[TaskType] = None,
+    priority: Optional[TaskPriority] = None,
+    scope: Optional[str] = None,
     kind: Optional[TaskKind] = None,
     parent_slug: Optional[str] = None,
     for_agent: bool = False,
     blocked_by: Optional[list[str]] = None,
     due_date: Optional[str] = None,
     detail: Optional[str] = None,
+    document_file: Optional[str] = None,
 ) -> str:
-    """Create a dev-task with optional inline Markdown body.
+    """Create a dev-task, either from inline params or a Task Document file.
 
-    For rich Task Documents with YAML front matter (spec / simple
-    tasks), prefer ``create_task_document``.  This tool is designed
-    for programmatic subtask creation where the content is already
-    known — pass the Markdown body directly as ``detail``.
+    When ``document_file`` is provided, it takes precedence over inline
+    params — the file's YAML front matter supplies all structured fields
+    and the Markdown body becomes ``detail``.
 
     Args:
-        title: One-line summary, verb-first.
-        task_type: Chinese literal.
-        priority: Chinese literal.
-        scope: ``<layer>-<tech>`` format.
+        title: One-line summary, verb-first (required unless document_file).
+        task_type: Chinese literal (required unless document_file).
+        priority: Chinese literal (required unless document_file).
+        scope: ``<layer>-<tech>`` format (required unless document_file).
         kind: ``subtask`` for child tasks; omit for standalone tasks.
         parent_slug: Required when kind=subtask.
         for_agent: Whether the task is claimable by an agent.
         blocked_by: List of same-layer dependency slugs.
         due_date: ISO-8601 date string.
         detail: Optional Markdown body (Goal / Plan / AC sections).
+        document_file: Absolute path to a Task Document under /tmp.
+            When supplied, YAML front matter overrides inline params.
     """
-    body: dict[str, Any] = {
-        "title": title,
-        "type": task_type,
-        "priority": priority,
-        "scope": scope,
-        "for_agent": for_agent,
-    }
-    if kind is not None:
-        body["kind"] = kind
-    if parent_slug is not None:
-        body["parent_slug"] = parent_slug
-    if blocked_by is not None:
-        body["blocked_by"] = blocked_by
-    if due_date is not None:
-        body["due_date"] = due_date
-    if detail is not None:
-        body["detail"] = detail
+    if document_file is not None:
+        text = _read_temp_markdown(document_file)
+        try:
+            document = parse_task_document(text)
+        except DocumentError as exc:
+            raise ToolError(f"Task Document 解析失败: {exc}") from exc
+        body = document.to_body()
+    else:
+        if title is None or task_type is None or priority is None or scope is None:
+            missing = [
+                name for name, val in
+                [("title", title), ("task_type", task_type),
+                 ("priority", priority), ("scope", scope)]
+                if val is None
+            ]
+            raise ToolError(
+                f"缺少必填参数: {', '.join(missing)}（使用 document_file 时除外）"
+            )
+        body = {
+            "title": title,
+            "type": task_type,
+            "priority": priority,
+            "scope": scope,
+            "for_agent": for_agent,
+        }
+        if kind is not None:
+            body["kind"] = kind
+        if parent_slug is not None:
+            body["parent_slug"] = parent_slug
+        if blocked_by is not None:
+            body["blocked_by"] = blocked_by
+        if due_date is not None:
+            body["due_date"] = due_date
+        if detail is not None:
+            body["detail"] = detail
 
     raw = await client.create_task(body)
     return json.dumps(
         {
             "slug": raw.get("slug"),
-            "title": raw.get("title", title),
+            "title": raw.get("title", body.get("title")),
         },
         ensure_ascii=False,
         default=_to_jsonable,
@@ -270,15 +244,15 @@ async def create_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: update_task — state + detail edits
+# Tool: update_task — state + detail edits, also bulk-complete
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
-@_count_tool
 @_handle_errors
 async def update_task(
-    slug: str,
+    slug: Optional[str] = None,
+    slugs: Optional[list[str]] = None,
     title: Optional[str] = None,
     task_type: Optional[TaskType] = None,
     priority: Optional[TaskPriority] = None,
@@ -294,17 +268,55 @@ async def update_task(
 ) -> str:
     """Update a task's structured fields and optional Markdown body.
 
+    Pass ``slug`` for a single task update, or ``slugs`` for a batch
+    status-only update (e.g. mark multiple tasks as 已完成).  ``slug``
+    and ``slugs`` are mutually exclusive.
+
     Status changes (e.g. ``进行中``, ``已搁置``) go here.
-    For complete Task Document replacement with YAML front matter,
-    only ``create_task_document`` is available — editing happens via
-    ``create_task_document`` for new tasks and ``update_task`` with
-    the ``detail`` parameter for existing ones.
 
     Args:
-        slug: e.g. "task-42".
+        slug: Single task slug, e.g. "task-42".
+        slugs: Multiple slugs for batch status update.
+            Mutually exclusive with ``slug``.
         title, task_type, priority, scope, etc.: fields to update.
         detail: Optional new Markdown body (replaces existing detail).
     """
+    if slug is not None and slugs is not None:
+        raise ToolError("slug 和 slugs 不能同时提供")
+    if slugs is not None:
+        # Batch mode: status-only update for multiple tasks.
+        sem = asyncio.Semaphore(5)
+
+        async def _update_one(s: str) -> dict:
+            async with sem:
+                try:
+                    await client.update_task(
+                        s, {"status": status or "已完成"}
+                    )
+                    return {"slug": s, "ok": True}
+                except DevTaskAPIError as exc:
+                    return {"slug": s, "ok": False, "error": exc.message}
+                except Exception as exc:
+                    return {"slug": s, "ok": False, "error": str(exc)}
+
+        results = await asyncio.gather(
+            *[_update_one(s) for s in slugs], return_exceptions=True
+        )
+        succeeded = [
+            r["slug"] for r in results
+            if isinstance(r, dict) and r.get("ok")
+        ]
+        failed = [
+            {"slug": r["slug"], "error": r.get("error", "unknown")}
+            for r in results
+            if isinstance(r, dict) and not r.get("ok")
+        ]
+        return json.dumps(
+            {"succeeded": succeeded, "failed": failed},
+            ensure_ascii=False,
+            default=_to_jsonable,
+        )
+
     body: dict[str, Any] = {}
     if title is not None:
         body["title"] = title
@@ -336,88 +348,11 @@ async def update_task(
 
 
 # -------------------------------------------------------------------------- #
-# Tool: create_task_document — Task Document v1 entry point
-# -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_count_tool
-@_handle_errors
-async def create_task_document(document_file: str) -> str:
-    """Create a dev-task from a Task Document file (v1 protocol).
-
-    The document is a UTF-8 Markdown file under ``/tmp`` with a YAML front
-    matter block delimited by ``---``. Structured fields (title, type,
-    priority, scope, kind, due_date, blocked_by, parent_slug, for_agent)
-    come from the front matter; the rendered Markdown body becomes the
-    task's ``detail``.
-
-    The response is a compact acknowledgement with just the new slug and
-    title — agents should call ``get_task(slug, view="execute")`` if they
-    need the parsed sections back.
-
-    Args:
-        document_file: Absolute path to a UTF-8 Task Document under /tmp.
-    """
-    text = _read_temp_markdown(document_file)
-    try:
-        document = parse_task_document(text)
-    except DocumentError as exc:
-        raise ToolError(f"Task Document 解析失败: {exc}") from exc
-
-    body = document.to_body()
-    raw = await client.create_task(body)
-    return json.dumps(
-        {
-            "slug": raw.get("slug"),
-            "title": raw.get("title", body.get("title")),
-        },
-        ensure_ascii=False,
-        default=_to_jsonable,
-    )
-
-
-# -------------------------------------------------------------------------- #
-# Tool: complete_task
-# -------------------------------------------------------------------------- #
-
-
-@mcp.tool()
-@_count_tool
-@_handle_errors
-async def complete_task(slug: str | list[str]) -> str:
-    """把单个或多个任务标记为 已完成。
-
-    Args:
-        slug: e.g. "task-42"；或多个 ["task-42","task-43"]。
-    """
-    slugs = [slug] if isinstance(slug, str) else slug
-    results = await asyncio.gather(
-        *[client.update_task(s, {"status": "已完成"}) for s in slugs],
-        return_exceptions=True,
-    )
-    succeeded: list[str] = []
-    failed: list[dict] = []
-    for s, r in zip(slugs, results):
-        if isinstance(r, Exception):
-            msg = r.message if isinstance(r, DevTaskAPIError) else str(r)
-            failed.append({"slug": s, "error": msg})
-        else:
-            succeeded.append(s)
-    return json.dumps(
-        {"succeeded": succeeded, "failed": failed},
-        ensure_ascii=False,
-        default=_to_jsonable,
-    )
-
-
-# -------------------------------------------------------------------------- #
 # Tool: list_children
 # -------------------------------------------------------------------------- #
 
 
 @mcp.tool()
-@_count_tool
 @_handle_errors
 async def list_children(parent_slug: str) -> str:
     """Return summary records for every child of a parent spec.
@@ -444,6 +379,4 @@ if __name__ == "__main__":
         asyncio.run(mcp.run_stdio_async())
     except KeyboardInterrupt:
         pass
-    finally:
-        _save_usage()  # 进程退出时把累计计数刷盘
     exit(0)

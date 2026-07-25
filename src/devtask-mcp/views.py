@@ -22,14 +22,10 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from .task_document import (
-    CANONICAL_SECTIONS,
-    REQUIRED_SECTIONS,
-    SECTION_ORDER,
     DocumentSection,
     _parse_sections,
     _split_front_matter,
     _validate_metadata,
-    _validate_sections,
 )
 
 VIEWS: tuple[str, ...] = ("summary", "execute", "review", "full")
@@ -104,7 +100,6 @@ def _parse_detail(detail: Optional[str]) -> ParsedTaskDocument:
         # Don't enforce required sections here — this is a read-side
         # parser, so legacy detail bodies with weird structure must
         # still be readable in ``full`` view.
-        _ = (REQUIRED_SECTIONS, CANONICAL_SECTIONS, SECTION_ORDER)
     except Exception:
         return ParsedTaskDocument(metadata={}, raw_markdown=detail)
     return ParsedTaskDocument(
