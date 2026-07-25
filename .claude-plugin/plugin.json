@@ -1,7 +1,7 @@
 {
   "name": "devtask",
-  "version": "2.5.0",
-  "description": "Agent-native dev task board — investigate needs into well-specified tasks, execute them end-to-end, review code + acceptance criteria against real code. Pocock's frontier pattern with spec/slug/dependency fields and scope de-enum.",
+  "version": "3.0.0",
+  "description": "Agent-native dev task board — Task Document v3: long-form text lives in a single Markdown detail; MCP tools accept a document file under /tmp instead of repeating the body in arguments.",
   "author": {
     "name": "Kuroome",
     "url": "https://github.com/KanoCifer"
@@ -9,7 +9,7 @@
   "homepage": "https://github.com/KanoCifer/DevTaskMcp",
   "repository": "https://github.com/KanoCifer/DevTaskMcp",
   "license": "MIT",
-  "keywords": ["task", "kanban", "spec", "agent", "mcp", "frontier"],
+  "keywords": ["task", "kanban", "spec", "agent", "mcp", "frontier", "task-document"],
   "skills": [
     "./skills/devtask-gcf",
     "./skills/devtask-grill",

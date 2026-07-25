@@ -4,16 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-DevTaskMcp is an MCP server (Python, FastMCP) that wraps the kanocifer.chat dev-task API as six tools for AI agents. It implements a "frontier" pattern — agents claim and execute the next ready task from a kanban board. Two skills (`devtask-plan`, `devtask-doit`) round out the package.
+DevTaskMcp is an MCP server (Python, FastMCP) that wraps the kanocifer.chat dev-task API as Task Document v3 tools for AI agents. It implements a "frontier" pattern — agents claim and execute the next ready task from a kanban board. The v3 protocol collapses all long-form text into a single `detail` Markdown body and uses YAML front matter (same convention as skill `SKILL.md`) for structured fields.
 
 ## Commands
 
 ```bash
 # Run the MCP server (stdio, one server per agent session)
 uv run python -m devtask_mcp.server
-```
 
-There is no test suite, linter, formatter, or CI configured yet.
+# Run the test suite
+uv run --group dev python -m pytest tests -q
+```
 
 ## Environment
 
@@ -56,4 +57,13 @@ Skills live in the repo-root `skills/` directory (`skills/devtask-plan/`, `skill
 - `per_page` is capped at 20 regardless of caller input.
 - HTTP timeout: 15.0 s.
 - A single long-lived `DevTaskClient` lives at module level — safe because FastMCP stdio runs one server per agent session.
-- Spec is the single source of truth: once created, tasks are mutated via `devtask_update_task`; execution appends decisions to the `detail` field.
+
+## v3 architecture (Task Document)
+
+- All long text lives in `detail` (a Task Document). The MCP server parses `---`-delimited YAML front matter for structured fields (same convention as skill `SKILL.md`) and renders the rest as a fixed set of Markdown sections (`Goal`, `Plan`, `Acceptance Criteria`, `Constraints`, `Context Pointers`, `Decisions`, `Out of Scope`).
+- `create_task_document` / `create_task` / `update_task` are the core write tools. Use `create_task_document` for spec/simple tasks (file-backed YAML front matter), `create_task` for subtasks (inline detail), and `update_task` for status or detail edits.
+- `get_task(slug, view=...)` parses `detail` into one of four views. The default is `summary` so the agent never accidentally pulls the full body into context.
+- `list_children` always returns summary records. Children are fetched with a richer view only when needed.
+- `update_task` covers state + detail edits. For full Task Document replacement pass `detail=`; for status changes pass `status=`.
+
+See `docs/task-document-v1.md` for the full Task Document spec.

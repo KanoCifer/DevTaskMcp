@@ -158,28 +158,52 @@ cp .env.example .env
 标记已完成
 ```
 
-## 任务模型
+## 任务模型（v3 — Task Document）
 
-所有文本字段（`description`、`detail`、`acceptance_criteria`、`constraints`、`context_pointers`）支持 **Markdown 格式**。
+v3 把所有长文本统一到一个 **Task Document**。`detail` 是唯一长文本字段，
+正文必须使用固定章节：Goal / Plan / Acceptance Criteria / Constraints /
+Context Pointers（外加 Decisions / Out of Scope）。其它结构化字段保持不变。
 
-| 字段                  | 必填 | 含义                                    | Markdown    |
-| --------------------- | ---- | --------------------------------------- | ----------- |
-| `slug`                | 自动 | `task-ID`，人类可读，单调递增           | —           |
-| `title`               | 是   | 一行摘要，动词开头                      | plain       |
-| `type`                | 是   | `问题` / `功能需求` / `优化` / `技术债` | —           |
-| `priority`            | 是   | `P0 紧急` / `P1 高` / `P2 中` / `P3 低` | —           |
-| `scope`               | 是   | `<层>-<技术>` 自由格式，如 `后端-Go`    | —           |
-| `kind`                | 否   | `spec`（规划节点）/ `subtask`（可执行） | —           |
-| `parent_slug`         | 否   | 子任务归属的 spec slug；spec 自身留空   | —           |
-| `acceptance_criteria` | 否   | "完成"的条件；doit 自检，verify 复检    | list        |
-| `constraints`         | 否   | 硬性边界（文件、技术栈、基准）          | list/table  |
-| `context_pointers`    | 否   | 相关代码路径 / 文档 / ADR               | code blocks |
-| `for_agent`           | 是   | Agent 可认领标志（默认 `true`）         | —           |
-| `blocked_by`          | 否   | 同层前置依赖的 slug 列表（执行顺序）    | —           |
+### MCP 工具
 
-枚举值使用 Go 后端期望的**中文字面量**——不要使用英文键。
+| 工具                       | 用途                                                    |
+| -------------------------- | ------------------------------------------------------- |
+| `create_task_document`     | 读取 `/tmp` 下的 Task Document 并创建任务（spec / 简单任务） |
+| `create_task`              | 内联参数创建任务（subtask，可选 detail 传 Markdown）     |
+| `update_task`              | 修改状态字段 + 可选 detail 正文                         |
+| `complete_task`            | 标记已完成（兼容单 slug 或数组）                          |
+| `get_task(slug, view=...)` | `summary` / `execute` / `review` / `full`                |
+| `list_children`            | 永远返回 summary 记录                                    |
 
-**字段语义分离：** `parent_slug` 承载子→父的结构归属（`devtask_list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。两者不再混用。
+### 视图
+
+| view       | 返回内容                                                          |
+| ---------- | ----------------------------------------------------------------- |
+| `summary`  | 结构化字段，不包含 detail                                         |
+| `execute`  | summary + Goal / Plan / Acceptance Criteria / Constraints / Context Pointers |
+| `review`   | summary + Acceptance Criteria / Constraints / Context Pointers     |
+| `full`     | 原始任务对象（含完整 detail）                                      |
+
+默认 `view=summary`，防止 agent 误把长文拉进上下文。
+
+### 字段表
+
+| 字段           | 必填 | 含义                                    | 形式           |
+| -------------- | ---- | --------------------------------------- | -------------- |
+| `slug`         | 自动 | `task-ID`，人类可读，单调递增           | —              |
+| `title`        | 是   | 一行摘要，动词开头                      | plain          |
+| `type`         | 是   | `问题` / `功能需求` / `优化` / `技术债` | —              |
+| `priority`     | 是   | `P0 紧急` / `P1 高` / `P2 中` / `P3 低` | —              |
+| `scope`        | 是   | `<层>-<技术>` 自由格式                  | —              |
+| `kind`         | 否   | `spec` / `subtask`                      | —              |
+| `parent_slug`  | 否   | 子任务归属的 spec slug                  | —              |
+| `due_date`     | 否   | ISO-8601 截止日期                        | —              |
+| `blocked_by`   | 否   | 同层前置依赖                            | —              |
+| `for_agent`    | 是   | Agent 可认领标志                        | —              |
+| `detail`       | 否   | Task Document 渲染后的 Markdown         | Markdown       |
+
+枚举值使用 Go 后端期望的**中文字面量**——不要使用英文键。详细 Task Document
+规范见 `docs/task-document-v1.md`。
 
 ## 目录结构
 

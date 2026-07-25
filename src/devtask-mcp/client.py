@@ -182,53 +182,13 @@ class DevTaskClient:
     async def create_task(self, body: dict) -> dict:
         return cast(dict, await self._request("POST", "/dev-tasks", json=body))
 
-    async def batch_create_tasks(self, items: list[dict]) -> dict:
-        """并发创建多个任务，单次上限 20 条（MAX_PER_PAGE）。
-
-        每条独立派发；部分失败不会回滚已成功的条目，而是汇总到
-        ``failed`` 列表中由调用方重试。条目之间必须相互独立——
-        单次 batch 内不允许跨任务 blocked_by（同批 slug 尚未分配）。
-
-        返回::
-            {
-              "succeeded": [{"index": 0, "slug": "task-N", "title": "..."}],
-              "failed":    [{"index": 3, "title": "...", "error": "..."}],
-              "summary":   "7/10 created"
-            }
-        """
-        items = items[:MAX_PER_PAGE]
-        results: list = await asyncio.gather(
-            *[self.create_task(body) for body in items], return_exceptions=True
-        )
-        succeeded: list[dict] = []
-        failed: list[dict] = []
-        for idx, (body, result) in enumerate(zip(items, results)):
-            title = body.get("title", "")
-            if isinstance(result, Exception):
-                msg = (
-                    result.message
-                    if isinstance(result, DevTaskAPIError)
-                    else str(result)
-                )
-                failed.append({"index": idx, "title": title, "error": msg})
-            else:
-                succeeded.append(
-                    {"index": idx, "slug": result.get("slug", ""), "title": title}
-                )
-        return {
-            "succeeded": succeeded,
-            "failed": failed,
-            "summary": f"{len(succeeded)}/{len(items)} created",
-        }
-
     # ----------------------------------------------------------------- update
 
     async def update_task(self, slug: str, body: dict) -> dict:
         # PATCH 后端返回 data:null(只给成功标志),用 _request_allowing_empty
-        # 容忍空数据,再回查一次拿最新对象给 agent。
+        # 容忍空数据。v3 不再回查——调用方如需新视图再走 get_task。
         await self._request_allowing_empty("PATCH", f"/dev-tasks/{slug}", json=body)
-        data = await self._request("GET", f"/dev-tasks/{slug}")
-        return cast(dict, data)
+        return {"slug": slug, "updated": True}
 
     # --------------------------------------------------------------- children
 

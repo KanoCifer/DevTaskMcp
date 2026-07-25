@@ -8,9 +8,10 @@ disable-model-invocation: true
 
 # devtask-plan
 
-把模糊需求变成 **spec（做什么 + 方案）** 和一组可执行的具体 task，并使用`mcp__devtask__*`工具落库追踪。
-
-**核心：** spec → tasks。先达成共享理解，再拆为独立可执行的子任务。
+把模糊需求变成 **spec** 和一组可执行的子任务。spec 用
+`create_task_document`（文件式 YAML front matter + Markdown 章节）
+落库，每个 subtask 用 `create_task`（内联 detail 参数）创建。
+**不要在对话里输出完整 spec 正文** — 写一次文件即可。
 
 ## 流程
 
@@ -32,38 +33,60 @@ disable-model-invocation: true
 
 方案确定后用 `AskUserQuestion` 收集 title / type / priority / blocked_by（第一选项推荐值）。scope 从讨论中确定不单独提问。
 
-### 3. Spec 落库
+### 3. 写 spec 的 Task Document
 
-`create_task` 落为 parent（`for_agent=true`，避免反悔不拆时产生 dead task）。
+用 `Write` 写一份 spec 的 Task Document 到 `/tmp/devtask-plan-<短名称>.md`（YAML front matter + 固定章节）。
 
-### 4. 拆子任务
+spec 只放公共内容（Goal / Decisions / Constraints / Context Pointers），不放子任务的 Plan / AC。
 
-**a. 草案：** 基于 spec 一次性推导全部子任务的 title / acceptance_criteria / constraints / context_pointers。type/priority/scope 从 parent 继承。
+### 4. 落库 spec
 
-子任务要求：独立可执行、单 scope、不跨 5 文件/1 服务。
-
-**b. 确认：** `AskUserQuestion` 打包确认拆分方案和所有子任务字段（有歧义的决策点单独追问，不混问卷）。选"不拆"时评估降级 simple。
-
-**c. 落库：** `batch_create_tasks`（kind=subtask, parent_slug=spec, for_agent=true）。超 20 条分批。
-
-### 5. 交付
-
+```text
+create_task_document(document_file="/tmp/devtask-plan-<短名称>.md")
 ```
+
+记下返回的 `slug`（即 spec slug）。
+
+### 5. 逐个创建 subtask
+
+对每个子任务调用 `create_task`，内联 detail 参数传入子任务自身的 Markdown 正文。
+
+```text
+create_task(
+    title="<子任务标题>",
+    task_type="功能需求",      # 或 优化 / 问题 / 技术债
+    priority="P1 高",
+    scope="后端-Python",
+    kind="subtask",
+    parent_slug="<spec-slug>",   # 上一步返回的 slug
+    blocked_by=["task-N1"],      # 同层依赖（可选）
+    detail="## Goal\n...\n\n## Plan\n...\n\n## Acceptance Criteria\n- [ ] ..."
+)
+```
+
+每个 subtask 只放增量内容（Goal / Plan / Acceptance Criteria），重复的不抄父。**不要在对话里拼好整篇 Markdown 再调 MCP** — 直接在 detail 参数传简洁正文即可。
+
+### 6. 交付
+
+```text
 Spec: task-N (kind: spec)
 ├── task-N1: <title> [parent: task-N]
 ├── task-N2: <title> [parent: task-N]
 └── task-N3: <title> [parent: task-N]
 
-Approved？启动：/devtask:devtask-doit task-N1
+Approved? 启动：/devtask:devtask-doit task-N1
 ```
 
-用户确认后可推进到待排期。
+**只报告 slug 树，不要复述 Task Document 内容**。要查正文就
+`get_task(slug, view="execute")`。
 
 ## Rules
 
 - **Spec 必须拆** — 不允许只产出计划文档不落库
-- **子任务不循环依赖** — blocked_by 只指同层前置；归属用 parent_slug
+- **写一次文件** — spec 的 Task Document 写 /tmp 后不要再在对话里复述
+- **子任务不依赖 spec slug 以外的东西** — blocked_by 用已知 slug，不要猜
+- **父不放子任务的 Plan / AC** — 父只保留公共信息，子任务各写各的
 - **Fall fast** — 核心假设不成立 → 已搁置，detail 记录原因
-- **Source of truth** — 走 `update_task` 修改，不重新 create
+- **Source of truth** — 修改走 `update_task(slug, detail=...)`；状态变更走 `update_task(slug, status=...)`
 - **AskUserQuestion** — 第一选项推荐值；options 必须有 label + description
-- **context_pointers** — 只列 read 过的文件，`path:line` 格式
+- **Context Pointers** — 只列 read 过的文件，`path:line` 格式

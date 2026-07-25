@@ -1,8 +1,10 @@
 """Pydantic models mapping the go-backend DevTask DTOs.
 
-Every enum value is the literal Chinese string your Go backend expects —
-NOT the Go constant names. These are validated at the Python boundary so a
-bad value never wastes a round-trip to the API.
+v3: the legacy long-text fields (``description``, ``acceptance_criteria``,
+``constraints``, ``context_pointers``) still appear on the wire while the
+backend completes its migration.  This module keeps them in
+:class:`DevTaskOut` so the API client can still parse the backend
+response, but the MCP tools and view layer never surface them.
 """
 
 from __future__ import annotations
@@ -29,7 +31,14 @@ TaskKind = Literal["spec", "subtask"]
 
 
 class DevTaskOut(BaseModel):
-    """A single dev-task as returned by the API."""
+    """A single dev-task as returned by the API.
+
+    v3: ``detail`` is the only long-text field.  ``description``,
+    ``acceptance_criteria``, ``constraints`` and ``context_pointers``
+    are kept here purely for the wire format and should be ignored by
+    new code.  The view layer parses ``detail`` into structured
+    sections.
+    """
 
     id: str
     user_id: int
@@ -61,34 +70,6 @@ class DevTaskOut(BaseModel):
     # with_parent=true 且 parent_slug 非空时返回的父 spec 数据。
     # 自引用 Optional —— 无父或未请求时为 None。
     parent: Optional["DevTaskOut"] = None
-
-
-# ---------------------------------------------------------------------------
-# Batch create
-# ---------------------------------------------------------------------------
-
-
-class BatchTaskRequest(BaseModel):
-    """单个任务的创建请求，字段与 create_dev_task 工具参数同形。
-
-    单次 batch 内不允许跨任务 blocked_by（因为同批 slug 尚未分配），
-    但允许引用已存在的 parent_slug。
-    """
-
-    title: str
-    task_type: TaskType
-    priority: TaskPriority
-    scope: str
-    description: Optional[str] = None
-    detail: Optional[str] = None
-    due_date: Optional[str] = None
-    acceptance_criteria: Optional[str] = None
-    constraints: Optional[str] = None
-    context_pointers: Optional[str] = None
-    for_agent: bool = False
-    blocked_by: Optional[list[str]] = None
-    kind: Optional[TaskKind] = None
-    parent_slug: Optional[str] = None
 
 
 class PaginationOut(BaseModel):
