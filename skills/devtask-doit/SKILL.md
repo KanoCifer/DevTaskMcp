@@ -1,17 +1,10 @@
 ---
 name: devtask-doit
-description: '端到端执行一个可执行的（for_agent=true）dev-task。当用户说"做 task-N"、"执行任务"、"work on the next task"、"do task-42"，或给出一个 slug 来执行时使用。遇到 parent task（kind=spec）时会引导到子任务而不是执行 spec 本身。'
+description: "End-to-end execute a devtask from the kanban board. Use when the user asks to execute a task, work on a task, do task-N, start the next task, or says 'let's do this task'."
 argument-hint: [Which Task do you want to execute?<task-N>]
-disable-model-invocation: true
 ---
 
 # devtask-doit
-
-**关键词：execute。** 每次运行把一个可执行任务从当前状态推进到已完成。
-
-v3：只读 `get_task(slug, view="execute")`，不要自己解析 Markdown，
-也不要读取 `context_pointers` / `constraints` / `acceptance_criteria`
-这些独立字段——v3 已把它们合并进 `detail`，MCP 服务端会按视图返回。
 
 ## 流程
 
@@ -56,4 +49,3 @@ get_task(slug, view="execute")
 ## Rules
 
 - **Source of truth** — 任务状态推进走 `update_task(slug, status=...)`；批量走 `update_task(slugs=[...])`；其他字段修改走 `update_task(slug, detail=...)`
-- **信任 MCP 视图** — `get_task(slug, view="execute")` 返回的 `sections` 已经包含了 `goal` / `plan` / AC / constraints / context_pointers，不要自己解析或复述

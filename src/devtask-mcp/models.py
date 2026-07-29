@@ -1,10 +1,9 @@
-"""Pydantic models mapping the go-backend DevTask DTOs.
-"""
+"""Pydantic models mapping the go-backend DevTask DTOs."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -30,22 +29,22 @@ class DevTaskOut(BaseModel):
     id: str
     user_id: int
     title: str
-    detail: Optional[str] = None
+    detail: str | None = None
     type: TaskType
     priority: TaskPriority
     scope: TaskScope
     status: TaskStatus
     sort_order: int = 0
-    due_date: Optional[datetime] = None
+    due_date: datetime | None = None
     is_deleted: bool = False
     created_at: datetime
     updated_at: datetime
     for_agent: bool = False
     blocked_by: list[str] = []
     slug: str = ""
-    kind: Optional[TaskKind] = None
-    parent_slug: Optional[str] = None
-    parent: Optional["DevTaskOut"] = None
+    kind: TaskKind | None = None
+    parent_slug: str | None = None
+    parent: DevTaskOut | None = None
 
 
 class PaginationOut(BaseModel):
@@ -57,8 +56,8 @@ class PaginationOut(BaseModel):
     pages: int
     has_prev: bool
     has_next: bool
-    prev_num: Optional[int] = None
-    next_num: Optional[int] = None
+    prev_num: int | None = None
+    next_num: int | None = None
 
 
 class DevTaskListOut(BaseModel):

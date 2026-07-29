@@ -1,8 +1,7 @@
 ---
 name: devtask-simple
-description: '为简单任务（小功能、bug fix、小优化）快速探索代码、形成方案、落库为一个可执行 task（for_agent=true, 原子粒度）。当用户抛出预计改动 ≤5 文件、不需要拆分为多个子任务的小意图时使用。典型触发："修一下 X 的 bug"、"加个 Y 按钮"、"这段代码能不能优化"。不适合：跨层改动、3+ 独立诉求、架构决策（用 devtask-plan）；价值/判断类（Evaluation 模式可覆盖）。'
+description: "Quickly explore code, form a plan, and create a single executable devtask for small work. Use for bug fixes, small features, minor optimizations, single-intention changes affecting 5 or fewer files, or when the user says 'just fix this' or 'quick task'."
 argument-hint: [Brief description of the small task, bug fix, or improvement]
-disable-model-invocation: true
 ---
 
 # devtask-simple
@@ -44,41 +43,7 @@ v3 工作流：唯一长文本是 `detail`（Markdown）。方案、验收标准
 
 ### Task Document 模板
 
-```yaml
----
-title: "<动词 + 目标>"
-task_type: 问题        # 或 功能需求 / 优化 / 技术债
-priority: P1 高         # 或 P0 紧急 / P2 中 / P3 低
-scope: "<层>-<技术>"
-kind: subtask
-for_agent: true
----
-
-## Goal
-
-一两句目标。
-
-## Plan
-
-1. 步骤 1
-2. 步骤 2
-
-## Acceptance Criteria
-
-- [ ] 可检查的验收项 1
-- [ ] 可检查的验收项 2
-
-## Constraints
-
-- 硬性边界（可选）
-
-## Context Pointers
-
-- `path/to/file.py:line`（只列 read 过的文件）
-```
-
-`Goal` 和 `Acceptance Criteria` 必填。AC 必须 `- [ ]` 开头。`Context Pointers`
-必须是 `path:line` 格式。MCP 边界会校验中文 enum 并拒绝非 `/tmp` 下的文件。
+使用 `references/task-document-template.md`。`Goal` 和 `Acceptance Criteria` 必填。AC 必须 `- [ ]` 开头。`Context Pointers` 必须是 `path:line` 格式。MCP 边界会校验中文 enum 并拒绝非 `/tmp` 下的文件。
 
 ## Rules
 

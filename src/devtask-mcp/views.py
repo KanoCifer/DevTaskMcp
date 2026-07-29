@@ -19,7 +19,7 @@ sections fall back to the body of the document.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from .task_document import (
     DocumentSection,
@@ -88,7 +88,7 @@ def _split_context_pointers(text: str) -> list[str]:
     return out
 
 
-def _parse_detail(detail: Optional[str]) -> ParsedTaskDocument:
+def _parse_detail(detail: str | None) -> ParsedTaskDocument:
     if not detail:
         return ParsedTaskDocument(metadata={}, raw_markdown=detail or "")
     metadata, body = _split_front_matter(detail)

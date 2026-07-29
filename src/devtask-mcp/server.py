@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sys
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -29,7 +31,7 @@ mcp = FastMCP("devtask", mask_error_details=True)
 client = DevTaskClient()
 
 
-def _iso(dt: Optional[datetime]) -> Optional[str]:
+def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
 
 
@@ -95,9 +97,7 @@ def _read_temp_markdown(file_path: str) -> str:
         temp_root = Path("/tmp").resolve()
         resolved.relative_to(temp_root)
     except (FileNotFoundError, OSError, ValueError) as exc:
-        raise ToolError(
-            "document_file 必须指向 /tmp 下存在的 Markdown 文件"
-        ) from exc
+        raise ToolError("document_file 必须指向 /tmp 下存在的 Markdown 文件") from exc
 
     if resolved.suffix.lower() != ".md" or not resolved.is_file():
         raise ToolError("document_file 必须指向 /tmp 下的 .md 文件")
@@ -109,9 +109,7 @@ def _read_temp_markdown(file_path: str) -> str:
             )
         return resolved.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
-        raise ToolError(
-            "document_file 必须是 UTF-8 编码的 Markdown 文件"
-        ) from exc
+        raise ToolError("document_file 必须是 UTF-8 编码的 Markdown 文件") from exc
     except OSError as exc:
         raise ToolError(f"无法读取 document_file: {exc}") from exc
 
@@ -128,17 +126,7 @@ async def get_task(
     with_parent: bool = False,
     view: str = "summary",
 ) -> str:
-    """Fetch a single task by slug. Returns parsed views (v3).
-
-    Args:
-        slug: e.g. "task-42".
-        with_parent: When True, includes parent spec data for subtasks
-            (rendered with view="summary" regardless of the caller's
-            view choice, to keep parent lookups cheap).
-        view: One of ``summary``, ``execute``, ``review``, ``full``.
-            Defaults to ``summary`` so the agent never accidentally
-            pulls the full detail into context.
-    """
+    """Fetch a single task by slug. view: summary|execute|review|full (default summary)."""
     if view not in VIEWS:
         raise ToolError(f"未知 view: {view!r}，必须是 {list(VIEWS)}")
     raw = await client.get_task_by_slug(slug, with_parent=with_parent)
@@ -164,38 +152,19 @@ async def get_task(
 @mcp.tool()
 @_handle_errors
 async def create_task(
-    title: Optional[str] = None,
-    task_type: Optional[TaskType] = None,
-    priority: Optional[TaskPriority] = None,
-    scope: Optional[str] = None,
-    kind: Optional[TaskKind] = None,
-    parent_slug: Optional[str] = None,
+    title: str | None = None,
+    task_type: TaskType | None = None,
+    priority: TaskPriority | None = None,
+    scope: str | None = None,
+    kind: TaskKind | None = None,
+    parent_slug: str | None = None,
     for_agent: bool = False,
-    blocked_by: Optional[list[str]] = None,
-    due_date: Optional[str] = None,
-    detail: Optional[str] = None,
-    document_file: Optional[str] = None,
+    blocked_by: list[str] | None = None,
+    due_date: str | None = None,
+    detail: str | None = None,
+    document_file: str | None = None,
 ) -> str:
-    """Create a dev-task, either from inline params or a Task Document file.
-
-    When ``document_file`` is provided, it takes precedence over inline
-    params — the file's YAML front matter supplies all structured fields
-    and the Markdown body becomes ``detail``.
-
-    Args:
-        title: One-line summary, verb-first (required unless document_file).
-        task_type: Chinese literal (required unless document_file).
-        priority: Chinese literal (required unless document_file).
-        scope: ``<layer>-<tech>`` format (required unless document_file).
-        kind: ``subtask`` for child tasks; omit for standalone tasks.
-        parent_slug: Required when kind=subtask.
-        for_agent: Whether the task is claimable by an agent.
-        blocked_by: List of same-layer dependency slugs.
-        due_date: ISO-8601 date string.
-        detail: Optional Markdown body (Goal / Plan / AC sections).
-        document_file: Absolute path to a Task Document under /tmp.
-            When supplied, YAML front matter overrides inline params.
-    """
+    """Create a task from inline params, or from a Task Document file (document_file takes precedence)."""
     if document_file is not None:
         text = _read_temp_markdown(document_file)
         try:
@@ -206,9 +175,13 @@ async def create_task(
     else:
         if title is None or task_type is None or priority is None or scope is None:
             missing = [
-                name for name, val in
-                [("title", title), ("task_type", task_type),
-                 ("priority", priority), ("scope", scope)]
+                name
+                for name, val in [
+                    ("title", title),
+                    ("task_type", task_type),
+                    ("priority", priority),
+                    ("scope", scope),
+                ]
                 if val is None
             ]
             raise ToolError(
@@ -251,36 +224,22 @@ async def create_task(
 @mcp.tool()
 @_handle_errors
 async def update_task(
-    slug: Optional[str] = None,
-    slugs: Optional[list[str]] = None,
-    title: Optional[str] = None,
-    task_type: Optional[TaskType] = None,
-    priority: Optional[TaskPriority] = None,
-    scope: Optional[str] = None,
-    status: Optional[TaskStatus] = None,
-    sort_order: Optional[int] = None,
-    due_date: Optional[str] = None,
-    for_agent: Optional[bool] = None,
-    blocked_by: Optional[list[str]] = None,
-    kind: Optional[TaskKind] = None,
-    parent_slug: Optional[str] = None,
-    detail: Optional[str] = None,
-) -> str:
-    """Update a task's structured fields and optional Markdown body.
-
-    Pass ``slug`` for a single task update, or ``slugs`` for a batch
-    status-only update (e.g. mark multiple tasks as 已完成).  ``slug``
-    and ``slugs`` are mutually exclusive.
-
-    Status changes (e.g. ``进行中``, ``已搁置``) go here.
-
-    Args:
-        slug: Single task slug, e.g. "task-42".
-        slugs: Multiple slugs for batch status update.
-            Mutually exclusive with ``slug``.
-        title, task_type, priority, scope, etc.: fields to update.
-        detail: Optional new Markdown body (replaces existing detail).
-    """
+    slug: str | None = None,
+    slugs: list[str] | None = None,
+    title: str | None = None,
+    task_type: TaskType | None = None,
+    priority: TaskPriority | None = None,
+    scope: str | None = None,
+    status: TaskStatus | None = None,
+    sort_order: int | None = None,
+    due_date: str | None = None,
+    for_agent: bool | None = None,
+    blocked_by: list[str] | None = None,
+    kind: TaskKind | None = None,
+    parent_slug: str | None = None,
+    detail: str | None = None,
+) -> str | None:
+    """Update a task's fields and/or detail. Use slug (single) or slugs (batch status update, mutually exclusive)."""
     if slug is not None and slugs is not None:
         raise ToolError("slug 和 slugs 不能同时提供")
     if slugs is not None:
@@ -290,22 +249,17 @@ async def update_task(
         async def _update_one(s: str) -> dict:
             async with sem:
                 try:
-                    await client.update_task(
-                        s, {"status": status or "已完成"}
-                    )
+                    await client.update_task(s, {"status": status or "已完成"})
                     return {"slug": s, "ok": True}
                 except DevTaskAPIError as exc:
                     return {"slug": s, "ok": False, "error": exc.message}
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     return {"slug": s, "ok": False, "error": str(exc)}
 
         results = await asyncio.gather(
             *[_update_one(s) for s in slugs], return_exceptions=True
         )
-        succeeded = [
-            r["slug"] for r in results
-            if isinstance(r, dict) and r.get("ok")
-        ]
+        succeeded = [r["slug"] for r in results if isinstance(r, dict) and r.get("ok")]
         failed = [
             {"slug": r["slug"], "error": r.get("error", "unknown")}
             for r in results
@@ -317,34 +271,35 @@ async def update_task(
             default=_to_jsonable,
         )
 
-    body: dict[str, Any] = {}
-    if title is not None:
-        body["title"] = title
-    if task_type is not None:
-        body["type"] = task_type
-    if priority is not None:
-        body["priority"] = priority
-    if scope is not None:
-        body["scope"] = scope
-    if status is not None:
-        body["status"] = status
-    if sort_order is not None:
-        body["sort_order"] = sort_order
-    if due_date is not None:
-        body["due_date"] = due_date
-    if for_agent is not None:
-        body["for_agent"] = for_agent
-    if blocked_by is not None:
-        body["blocked_by"] = blocked_by
-    if kind is not None:
-        body["kind"] = kind
-    if parent_slug is not None:
-        body["parent_slug"] = parent_slug
-    if detail is not None:
-        body["detail"] = detail
+    if slug is not None:
+        body: dict[str, Any] = {}
+        if title is not None:
+            body["title"] = title
+        if task_type is not None:
+            body["type"] = task_type
+        if priority is not None:
+            body["priority"] = priority
+        if scope is not None:
+            body["scope"] = scope
+        if status is not None:
+            body["status"] = status
+        if sort_order is not None:
+            body["sort_order"] = sort_order
+        if due_date is not None:
+            body["due_date"] = due_date
+        if for_agent is not None:
+            body["for_agent"] = for_agent
+        if blocked_by is not None:
+            body["blocked_by"] = blocked_by
+        if kind is not None:
+            body["kind"] = kind
+        if parent_slug is not None:
+            body["parent_slug"] = parent_slug
+        if detail is not None:
+            body["detail"] = detail
 
-    raw = await client.update_task(slug, body)
-    return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
+        raw = await client.update_task(slug, body)
+        return json.dumps(raw, ensure_ascii=False, default=_to_jsonable)
 
 
 # -------------------------------------------------------------------------- #
@@ -355,15 +310,7 @@ async def update_task(
 @mcp.tool()
 @_handle_errors
 async def list_children(parent_slug: str) -> str:
-    """Return summary records for every child of a parent spec.
-
-    v3: never returns the full task object.  Each child is rendered
-    with the ``summary`` view so callers can fan out to ``get_task``
-    with a richer view if needed.
-
-    Args:
-        parent_slug: The spec slug, e.g. "task-42".
-    """
+    """List summary records for all children of a parent spec slug."""
     children = await client.find_children(parent_slug)
     summarised = [render_view(child, "summary") for child in children]
     return json.dumps(summarised, ensure_ascii=False, default=_to_jsonable)
@@ -379,4 +326,4 @@ if __name__ == "__main__":
         asyncio.run(mcp.run_stdio_async())
     except KeyboardInterrupt:
         pass
-    exit(0)
+    sys.exit(0)

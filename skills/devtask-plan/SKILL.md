@@ -1,15 +1,14 @@
 ---
 name: devtask-plan
-description: '调研需求形成 spec，再拆解为多个可执行的具体 task（输出 = spec + 子任务树）。当用户抛出一个预计改动 >5 文件、或需要跨层/多步骤的需求/功能/想法时使用——先明确做什么、怎么做，再落库为 spec + 子任务树。典型触发："做个 X 功能"、"规划一下这个需求"、"我有个想法想拆成几个 task"。不适合：简单的小修/小加/单文件改动（用 devtask-simple）；价值/判断类（用 devtask-simple 的 Evaluation 模式）。'
+description: "Research a requirement into a spec and break it into executable subtasks. Use when planning a complex feature, breaking down a requirement, creating a spec, discussing a multi-file change, or when the user says 'plan this out' or 'break this into tasks'."
 argument-hint:
   [Requirement / feature / idea to be specified and broken into tasks]
-disable-model-invocation: true
 ---
 
 # devtask-plan
 
 把模糊需求变成 **spec** 和一组可执行的子任务。spec 用
-`create_task(document_file=...)`（文件式 YAML front matter + Markdown 章节）
+`create_task(document_file=<path_to_file>)`（文件式 YAML front matter + Markdown 章节）
 落库，每个 subtask 用 `create_task`（内联 detail 参数）创建。
 
 ## 流程
@@ -24,7 +23,7 @@ disable-model-invocation: true
 
 ### 2. 方案 Grilling
 
-摊开探索成果，沿方案树逐枝拷问，一次一问，附推荐答案 + 理由，等回答再出下一个。
+调用 `/devtask:devtask-grill` skill 沿方案树逐枝拷问，一次一问，附推荐答案 + 理由，等回答再出下一个。
 
 顺序：方案选型 → 关键决策 → 实现步骤 → 验收条件 → 脆弱假设 → 约束红线
 
@@ -34,7 +33,7 @@ disable-model-invocation: true
 
 ### 3. 写 spec 的 Task Document
 
-用 `Write` 写一份 spec 的 Task Document 到 `/tmp/devtask-plan-<短名称>.md`（YAML front matter + 固定章节）。
+用 `Write` 写一份 spec 的 Task Document 到 `/tmp/devtask-plan-<短名称>.md`，使用 `references/spec-template.md`。
 
 spec 只放公共内容（Goal / Decisions / Constraints / Context Pointers），不放子任务的 Plan / AC。
 
@@ -75,9 +74,6 @@ Spec: task-N (kind: spec)
 
 Approved? 启动：/devtask:devtask-doit task-N1
 ```
-
-**只报告 slug 树，不要复述 Task Document 内容**。要查正文就
-`get_task(slug, view="execute")`。
 
 ## Rules
 

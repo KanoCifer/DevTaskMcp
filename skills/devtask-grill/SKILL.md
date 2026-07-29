@@ -1,17 +1,16 @@
 ---
 name: devtask-grill
-description: "relentless interview, round-based design tree traversal——每轮问完当前 frontier 所有可问的问题，每个带推荐。"
-disable-model-invocation: true
+description: "A relentless interview that asks every frontier question at once, round by round."
 ---
 
 # devtask-grill
 
-不依不饶地访谈，直到达成共享理解。把问题映射为一棵**设计树**：每个决策点展成分支，分支上再挂子决策。
+Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
 
-按 **round** 推进。**Frontier** 是每轮所有前提条件已满足、可以问的决策——那些你不用猜就能现在问的问题。一轮问完整个 frontier：给每个问题编号，附上你的推荐答案，然后等用户回答完再进下一轮。
+Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled — the questions you can ask _now_ without guessing at answers you haven't heard yet. Ask the whole frontier in one round: number each question and give your recommended answer. Then wait for the user's answers before the next round.
 
-每轮用户回答会重塑树的结构——已定的决策把 frontier 往外推，解锁之前依赖它们的问题。重新计算 frontier，进入下一轮。一个问题如果依赖还在问的其他问题，属于*后面的* round，不是这一轮。
+Each round the user answers reshapes the tree — settled decisions push the frontier outward and unblock questions that depended on them. Recompute the frontier and ask the next round. A question whose answer depends on another question still open in this round belongs to a _later_ round, not this one.
 
-**找事实是你的事，永远不是用户的。** 当一个 frontier 问题需要查环境信息（文件系统、工具等），派 sub-agent 去查——不要问用户任何你能自己找到的东西。但不用等它：一个正在跑的探索只是一个未满足的前提，只有下游问题才需要等 sub-agent 报告——当前轮其他问题照常问。**决策**是用户的——把每个决策交到他们手上，等他们回答。
+Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it — don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report — ask the rest of the frontier now. The _decisions_ are the user's — put each to them and wait.
 
-一轮结束后 frontier 为空就是终点：设计树的每条分支都走过了，没有隐含假设被遗漏。在用户确认之前，**不要擅自行动**。
+The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.

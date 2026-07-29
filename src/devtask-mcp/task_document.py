@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -70,7 +70,7 @@ class TaskDocument:
     extra_sections: list[DocumentSection] = field(default_factory=list)
     raw_markdown: str = ""
 
-    def section(self, name: str) -> Optional[str]:
+    def section(self, name: str) -> str | None:
         return self.sections.get(_normalise_section(name))
 
     def to_body(self) -> dict[str, Any]:
@@ -124,7 +124,7 @@ def _split_front_matter(raw: str) -> tuple[dict[str, Any], str]:
     lines = raw.splitlines(keepends=False)
     if not lines or lines[0].strip() != FRONT_MATTER_DELIM:
         return {}, raw
-    closing_idx: Optional[int] = None
+    closing_idx: int | None = None
     for idx in range(1, len(lines)):
         if lines[idx].strip() == FRONT_MATTER_DELIM:
             closing_idx = idx
@@ -162,14 +162,16 @@ def _section_canonical(title: str) -> str:
     return normalised
 
 
-def _parse_sections(body: str) -> tuple[dict[str, str], list[DocumentSection], list[str]]:
+def _parse_sections(
+    body: str,
+) -> tuple[dict[str, str], list[DocumentSection], list[str]]:
     """Return (canonical_sections, extras_in_order, unknown_titles)."""
     canonical: dict[str, str] = {}
     extras: list[DocumentSection] = []
     unknown: list[str] = []
 
-    current_title: Optional[str] = None
-    current_canonical: Optional[str] = None
+    current_title: str | None = None
+    current_canonical: str | None = None
     current_lines: list[str] = []
 
     def flush() -> None:
@@ -215,9 +217,7 @@ def _validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
 
     task_type = metadata.get("task_type")
     if task_type not in TaskType.__args__:
-        errors.append(
-            f"task_type 必须是 {TaskType.__args__} 之一，实际: {task_type!r}"
-        )
+        errors.append(f"task_type 必须是 {TaskType.__args__} 之一，实际: {task_type!r}")
 
     priority = metadata.get("priority")
     if priority not in TaskPriority.__args__:
@@ -261,9 +261,7 @@ def _validate_sections(sections: dict[str, str]) -> None:
         raise DocumentError(f"必填 section 缺失: {', '.join(labels)}")
     ac = sections["acceptance criteria"]
     if not any(line.lstrip().startswith("- [ ]") for line in ac.splitlines()):
-        raise DocumentError(
-            "Acceptance Criteria 必须至少包含一条 `- [ ]` 形式的检查项"
-        )
+        raise DocumentError("Acceptance Criteria 必须至少包含一条 `- [ ]` 形式的检查项")
 
 
 # --- entry point ------------------------------------------------------------
@@ -282,9 +280,7 @@ def parse_task_document(text: str) -> TaskDocument:
         raise DocumentError("Task Document 必须是字符串")
     metadata, body = _split_front_matter(text)
     if not metadata:
-        raise DocumentError(
-            "Task Document 必须以 YAML front matter 开头（--- 包裹）"
-        )
+        raise DocumentError("Task Document 必须以 YAML front matter 开头（--- 包裹）")
     metadata = _validate_metadata(metadata)
     sections, extras, _unknown = _parse_sections(body)
     _validate_sections(sections)

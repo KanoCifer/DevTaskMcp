@@ -11,9 +11,8 @@ Design notes
 
 from __future__ import annotations
 
-import asyncio
 import os
-from typing import Optional, cast
+from typing import cast
 
 import httpx
 from dotenv import load_dotenv
@@ -81,8 +80,8 @@ class DevTaskClient:
         method: str,
         path: str,
         *,
-        params: Optional[dict] = None,
-        json: Optional[dict] = None,
+        params: dict | None = None,
+        json: dict | None = None,
         allow_empty_data: bool = False,
     ) -> dict | list | None:
         """Execute an HTTP call, converting httpx errors and non-2xx into
@@ -115,11 +114,11 @@ class DevTaskClient:
     async def list_tasks(
         self,
         *,
-        status: Optional[str] = None,
-        priority: Optional[str] = None,
-        task_type: Optional[str] = None,
-        kind: Optional[str] = None,
-        for_agent: Optional[bool] = None,
+        status: str | None = None,
+        priority: str | None = None,
+        task_type: str | None = None,
+        kind: str | None = None,
+        for_agent: bool | None = None,
         include_deleted: bool = False,
         page: int = 1,
         per_page: int = 10,
@@ -153,7 +152,9 @@ class DevTaskClient:
         询。默认 False 保持单次查询的轻量行为。
         """
         params = {"with_parent": "true"} if with_parent else None
-        return cast(dict, await self._request("GET", f"/dev-tasks/{slug}", params=params))
+        return cast(
+            dict, await self._request("GET", f"/dev-tasks/{slug}", params=params)
+        )
 
     # ----------------------------------------------------------------- create
 
@@ -165,7 +166,9 @@ class DevTaskClient:
     async def update_task(self, slug: str, body: dict) -> dict:
         # PATCH 后端返回 data:null(只给成功标志),用 allow_empty_data 容忍空数据。
         # v3 不再回查——调用方如需新视图再走 get_task。
-        await self._request("PATCH", f"/dev-tasks/{slug}", json=body, allow_empty_data=True)
+        await self._request(
+            "PATCH", f"/dev-tasks/{slug}", json=body, allow_empty_data=True
+        )
         return {"slug": slug, "updated": True}
 
     # --------------------------------------------------------------- children

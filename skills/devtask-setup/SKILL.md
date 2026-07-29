@@ -1,6 +1,6 @@
 ---
 name: devtask-setup
-description: "初始化项目使用 devtask 看板：检查环境连通性、在 CLAUDE.md 中写入工作流引导。"
+description: "Set up devtask kanban for a new project: verify API connectivity and write workflow guidance into CLAUDE.md. Use when initializing devtask in a project for the first time, setting up the kanban board, or configuring the devtask workflow."
 argument-hint: [none]
 disable-model-invocation: true
 ---
@@ -14,7 +14,7 @@ disable-model-invocation: true
 ### 1. 环境检查
 
 - 检查环境变量是否存在且 `DEVTASK_API_KEY` 非空
-- 调用 `get_task("task-1")` 验证 API 连通性（任意已知 slug 即可，404 也表明连通）
+- 调用 `get_task("task-1")` 验证 API 连通性（404 也表明连通）
 
 **失败处理：**
 
@@ -27,35 +27,7 @@ disable-model-invocation: true
 
 **检查：** 先读取现有 CLAUDE.md，若已包含 `## devtask 工作流` 章节则告知用户并跳过写入。
 
-**写入内容如下（根据项目实际情况调整 scope 示例），追加到 CLAUDE.md 末尾：**
-
-    ## devtask 工作流
-
-    本项目使用 devtask 看板管理开发任务。MCP server `devtask` 提供 v3 工具，**优先用 skill 而不是直接拼工具调用**。
-
-    ### 工作流
-
-    需求 → /devtask:devtask-plan（复杂）或 /devtask:devtask-simple（简单）
-        → 落库为 spec + 子任务树
-        → /devtask:devtask-doit task-N（执行指定任务）
-        → /devtask:devtask-review（验收条件 + 代码审查）
-        → 标已完成
-
-    ### 何时使用
-
-    | 场景 | 技能 |
-    |------|------|
-    | 预计改动 >5 文件、跨层、需要拆子任务 | `/devtask:devtask-plan` |
-    | 预计改动 ≤5 文件、单意图 | `/devtask:devtask-simple` |
-    | 执行已落库的任务 | `/devtask:devtask-doit task-N` |
-    | 验收已完成任务 | `/devtask:devtask-review` |
-    | 探讨方案选型 | `/devtask:devtask-grill` |
-
-    ### 引用规范
-
-    - spec 是规划节点（kind=spec），subtask 是可执行单元（kind=subtask）
-    - `parent_slug` 承载结构归属，`blocked_by` 承载同层执行顺序依赖
-    - 状态推进统一走 `update_task(slug, status=...)` 或 `update_task(slugs=[...])`；其它字段修改走 `update_task(slug, detail=...)`
+**写入内容：** 读取 `references/claude-md-template.md`，根据项目实际情况调整 scope 示例后，追加到 CLAUDE.md 末尾。
 
 **写入方式：** 追加到 CLAUDE.md 末尾（若已有 devtask 章节则不重复写入）。写入后告知用户已添加引导。
 

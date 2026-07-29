@@ -1,8 +1,7 @@
 ---
 name: devtask-review
-description: '端到端审查 dev-task：(1) 逐条验证验收条件 ✓/❌/❓ (2) 并行四视角代码质量审查(复用/简化/效率/海拔) (3) 正确性+安全审查 (4) 能修的改、不能修的 skip 并说明。当用户说"review task-N"、"verify task-N"、"check task-42"、"验收 task-N"、"审查任务"、"does task-7 pass"、"这个 spec 完了吗"，或询问某任务的验收条件是否满足时使用。对 parent task（kind=spec）会自动递归审查所有子任务。与 /devtask:devtask-doit（执行任务）和 /devtask:devtask-plan（创建任务）配套。涉及时尚未收敛的设计决策时，引导用户先走 /devtask:devtask-grill。'
+description: "Review and verify a completed devtask against its acceptance criteria. Use when the user asks to review a task, verify completion, check acceptance criteria, run a code review on a finished task, or says 'review task-N'."
 argument-hint: [task slug to review, e.g. task-N]
-disable-model-invocation: true
 ---
 
 # devtask-review
@@ -44,16 +43,9 @@ get_task(slug, view="review")
 
 按 `sections.context_pointers` 找到被改动的代码。**改动范围不明时跳过本节并在报告里注明**。
 
-按 `/simplify` 的范式，沿四个视角各派一个审查视角并行跑（单消息多 Agent 并发）。每个视角返回 `file:line` + 一句话 `summary` + 代价 + 具体修法。
+沿四个视角各派一个审查视角并行跑（单消息多 Agent 并发）。每个视角返回 `file:line` + 一句话 `summary` + 代价 + 具体修法。
 
-| 视角               | 抓什么                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------- |
-| **Reuse**          | 新代码重复了 codebase 已有能力——指出已有的 helper 可改调                               |
-| **Simplification** | 冗余/可推导状态/复制粘贴变体/深层嵌套/留下死代码——指出等价更简形式                     |
-| **Efficiency**     | 冗余计算/可并行的串行/热路径阻塞/闭包大包——指出更便宜的写法                          |
-| **Altitude**       | 修复深度不够的特殊 case——偏好通用化底层机制而非叠特殊 case                             |
-
-每个视角独立判断；每个 finding 必须带 `file:line` + 改法。**小改动合并为单 Agent**，避免为用而用。
+详见 `references/review-perspectives.md`。每个视角独立判断；每个 finding 必须带 `file:line` + 改法。**小改动合并为单 Agent**，避免为用而用。
 
 ### 4. 正确性 + 安全审查
 
@@ -86,34 +78,7 @@ parent：子任务 AC 全部 ✅ + 自身 AC 全部 ✅ → `update_task(slugs=[
 
 ### 7. 报告
 
-```
-## Review: <slug> — <title>
-
-板上状态: <status> → <最终状态（若变动）>
-验收条件: 共 N 条，P 通过，F 失败，U 不明确
-
-| # | 条件 | 结论 | 证据 |
-|---|------|------|------|
-| 1 | ... | ✅/❌/❓ | file:line |
-
-### 清理审查（四视角）
-| 视角 | file:line | 修法 | 结论 |
-|------|-----------|------|------|
-| Reuse | ... | applied: ... | fixed |
-| Simplification | ... | 会改行为 | skipped: <reason> |
-| Efficiency | ... | applied: ... | fixed |
-| Altitude | — | — | clean |
-
-### 正确性 + 安全
-- [severity] file:line — 建议（不自动修）
-
-### 子任务概览（parent）
-| slug | title | AC | 清理 | 正确性 |
-|------|-------|----|------|--------|
-| task-N1 | ... | ✅ | clean | — |
-```
-
-全 AC 通过 + 清理全 clean → 末尾一句话总结"可以被证成完成"；否则明确 remaining work。
+按 `references/report-template.md` 格式输出。全 AC 通过 + 清理全 clean → 末尾一句话总结"可以被证成完成"；否则明确 remaining work。
 
 ## Rules
 
