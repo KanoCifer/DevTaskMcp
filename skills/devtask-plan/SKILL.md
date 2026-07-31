@@ -52,8 +52,8 @@ create_task(
     priority="P1 高",
     scope="Backend-Python",
     kind="subtask",
-    slug="task-42",              # 可选, 需大于parent_slug
     parent_slug="<spec-slug>",   # 上一步返回的 slug
+    slug="task-42",              # 可选，仅子任务，必须配合 parent_slug
     blocked_by=["task-N1"],      # 同层依赖（可选）
     detail="## Goal\n...\n\n## Plan\n...\n\n## Acceptance Criteria\n- [ ] ..."
 )

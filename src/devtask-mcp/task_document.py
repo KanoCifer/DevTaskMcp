@@ -246,7 +246,11 @@ def _validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         metadata["scope"] = scope.strip()
 
     slug = metadata.get("slug")
-    if slug is not None and (not isinstance(slug, str) or not SLUG_RE.match(slug)):
+    if slug is not None and "parent_slug" not in metadata:
+        errors.append("slug 只能用于创建子任务（front matter 需同时设置 parent_slug）")
+    elif slug is not None and (
+        not isinstance(slug, str) or not SLUG_RE.match(slug)
+    ):
         errors.append("slug 必须是 task-xxx 形式（xxx 不能含空白或 /）")
 
     kind = metadata.get("kind")
@@ -285,7 +289,7 @@ def parse_task_document(text: str) -> TaskDocument:
     Args:
         text: Full file contents as UTF-8 text.  An optional ``slug``
             front-matter field (``task-xxx``) requests a client-specified
-            slug on create.
+            slug on create for a subtask; ``parent_slug`` must also be set.
 
     Returns:
         A :class:`TaskDocument` ready to be turned into an API body.

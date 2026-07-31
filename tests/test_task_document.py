@@ -71,11 +71,27 @@ def test_front_matter_slug_pass_through():
         'priority: "P1 高"\n'
         'scope: "后端-Python"\n'
         'slug: "task-42"\n'
+        'parent_slug: "task-1"\n'
         "---\n\n"
         "## Goal\n\nx\n"
     )
     doc = parse_task_document(raw)
     assert doc.to_body()["slug"] == "task-42"
+
+
+def test_rejects_front_matter_slug_without_parent():
+    raw = (
+        "---\n"
+        'title: "Slugged"\n'
+        'task_type: "优化"\n'
+        'priority: "P1 高"\n'
+        'scope: "后端-Python"\n'
+        'slug: "task-42"\n'
+        "---\n\n"
+        "## Goal\n\nx\n"
+    )
+    with pytest.raises(DocumentError, match="parent_slug"):
+        parse_task_document(raw)
 
 
 def test_rejects_bad_front_matter_slug():
@@ -86,6 +102,7 @@ def test_rejects_bad_front_matter_slug():
         'priority: "P1 高"\n'
         'scope: "后端-Python"\n'
         'slug: "weird slug"\n'
+        'parent_slug: "task-1"\n'
         "---\n\n"
         "## Goal\n\nx\n"
     )

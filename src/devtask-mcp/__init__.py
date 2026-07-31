@@ -17,8 +17,8 @@ Tools
 - list_children — GET /dev-tasks?kind=subtask filtered by parent_slug
   (always returns summary records)
 - create_task — POST /dev-tasks, accepts inline params or
-  ``document_file`` for YAML front matter; optional ``slug`` sets a
-  client-specified slug (replaces old separate tools)
+  ``document_file`` for YAML front matter; optional ``slug`` is
+  subtask-only (requires ``parent_slug``) (replaces old separate tools)
 - update_task — PATCH /dev-tasks/:slug (state + detail);
   batch updates via ``slugs=[...]`` (replaces ``complete_task``)
 

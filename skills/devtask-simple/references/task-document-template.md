@@ -5,7 +5,7 @@ task_type: 问题        # 或 功能需求 / 优化 / 技术债
 priority: P1 高         # 或 P0 紧急 / P2 中 / P3 低
 scope: "<层>-<技术>"
 kind: subtask
-for_agent: true
+for_agent: true       # 不填自定义slug字段
 ---
 
 ## Goal

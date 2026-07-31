@@ -194,6 +194,7 @@ def test_create_task_sends_client_slug(_patch_client):
                 priority="P1 高",
                 scope="后端-Python",
                 slug="task-42",
+                parent_slug="task-1",
             )
         )
     )
@@ -201,6 +202,20 @@ def test_create_task_sends_client_slug(_patch_client):
     method, body = _patch_client.calls[0]
     assert method == "create_task"
     assert body["slug"] == "task-42"
+    assert body["parent_slug"] == "task-1"
+
+
+def test_create_task_rejects_slug_without_parent(_patch_client):
+    with pytest.raises(ToolError, match="parent_slug"):
+        asyncio.run(
+            server.create_task(
+                title="Top-level",
+                task_type="优化",
+                priority="P1 高",
+                scope="后端-Python",
+                slug="task-99",
+            )
+        )
 
 
 def test_create_task_rejects_bad_slug(_patch_client):
@@ -212,6 +227,7 @@ def test_create_task_rejects_bad_slug(_patch_client):
                 priority="P1 高",
                 scope="后端-Python",
                 slug="weird slug",
+                parent_slug="task-1",
             )
         )
 
@@ -250,6 +266,7 @@ def test_create_task_via_document_file_sends_compiled_body(_patch_client):
         'scope: "后端-Python"\n'
         'kind: "subtask"\n'
         'slug: "task-77"\n'
+        'parent_slug: "task-1"\n'
         "for_agent: true\n"
         "---\n\n"
         "## Goal\n\nDo the thing.\n\n"
@@ -270,6 +287,7 @@ def test_create_task_via_document_file_sends_compiled_body(_patch_client):
     assert body["type"] == "优化"
     assert body["kind"] == "subtask"
     assert body["slug"] == "task-77"
+    assert body["parent_slug"] == "task-1"
     assert body["for_agent"] is True
     assert "## Goal" in body["detail"]
     for legacy in (

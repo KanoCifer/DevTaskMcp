@@ -167,8 +167,10 @@ async def create_task(
 ) -> str:
     """Create a task from inline params, or from a Task Document file (document_file takes precedence).
 
-    slug: optional client-specified slug (task-xxx) for the new task; defaults to server-assigned.
+    slug: optional client-specified slug (task-xxx) for a subtask; requires parent_slug and defaults to server-assigned otherwise.
     """
+    if slug is not None and parent_slug is None:
+        raise ToolError("slug 只能用于创建子任务（需同时提供 parent_slug）")
     if document_file is not None:
         text = _read_temp_markdown(document_file)
         try:

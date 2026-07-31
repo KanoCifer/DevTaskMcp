@@ -10,10 +10,10 @@ title: "..."             # required
 task_type: "..."         # required, Chinese literal
 priority: "..."          # required, Chinese literal
 scope: "..."             # required, "<layer>-<tech>"
-slug: "task-xxx"         # optional, client-specified slug
 kind: subtask            # optional, "spec" or "subtask"
 for_agent: true          # optional, default true
-parent_slug: "..."       # optional
+parent_slug: "..."       # optional, required if slug is set
+slug: "task-xxx"         # optional, subtask-only; must accompany parent_slug
 blocked_by: ["..."]      # optional
 due_date: "2026-09-30"   # optional, ISO 8601
 ---
@@ -56,7 +56,8 @@ Step-by-step implementation plan.
   same convention is used by skill `SKILL.md` files, so the model can
   reuse one mental model.
 - Optional `slug` requests a client-specified slug (must match `task-xxx`,
-  no whitespace or `/`); omit it to let the server assign one.
+  no whitespace or `/`). It is **only valid for subtasks** and requires
+  `parent_slug` to also be set; specs always get a server-assigned slug.
 - Only the front matter is enforced. The Markdown body is a convention,
   not a requirement: `Goal`, `Plan`, `Acceptance Criteria`, etc. are
   parsed when present but never required, so free-form detail is
