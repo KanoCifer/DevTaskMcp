@@ -170,17 +170,15 @@ Context Pointers（外加 Decisions / Out of Scope）。其它结构化字段保
 | ---------------------------------- | ------------------------------------------------------- |
 | `create_task`                      | 内联参数或 `document_file` 创建任务（取代旧的两个工具）   |
 | `update_task`                      | 修改状态字段 + 可选 detail 正文；`slugs=[]` 批量完成     |
-| `get_task(slug, view=...)`         | `summary` / `execute` / `review` / `full`                |
+| `get_task(slug, view=...)`         | `summary` / `full`                                        |
 | `list_children`                    | 永远返回 summary 记录                                    |
 
 ### 视图
 
-| view       | 返回内容                                                          |
-| ---------- | ----------------------------------------------------------------- |
-| `summary`  | 结构化字段，不包含 detail                                         |
-| `execute`  | summary + Goal / Plan / Acceptance Criteria / Constraints / Context Pointers |
-| `review`   | summary + Acceptance Criteria / Constraints / Context Pointers     |
-| `full`     | 原始任务对象（含完整 detail）                                      |
+| view       | 返回内容                                                |
+| ---------- | ------------------------------------------------------- |
+| `summary`  | 结构化字段，不包含 detail                               |
+| `full`     | 原始任务对象（含完整 detail）                            |
 
 默认 `view=summary`，防止 agent 误把长文拉进上下文。
 

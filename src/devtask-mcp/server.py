@@ -15,7 +15,7 @@ from fastmcp.exceptions import ToolError
 
 from .client import DevTaskAPIError, DevTaskClient, DevTaskError
 from .models import TaskKind, TaskPriority, TaskStatus, TaskType
-from .task_document import DocumentError, parse_task_document
+from .task_document import SLUG_RE, DocumentError, parse_task_document
 from .views import VIEWS, ViewError, render_view
 
 logger = logging.getLogger("devtask-mcp")
@@ -126,7 +126,7 @@ async def get_task(
     with_parent: bool = False,
     view: str = "summary",
 ) -> str:
-    """Fetch a single task by slug. view: summary|execute|review|full (default summary)."""
+    """Fetch a single task by slug. view: summary|full (default summary)."""
     if view not in VIEWS:
         raise ToolError(f"未知 view: {view!r}，必须是 {list(VIEWS)}")
     raw = await client.get_task_by_slug(slug, with_parent=with_parent)
@@ -158,13 +158,17 @@ async def create_task(
     scope: str | None = None,
     kind: TaskKind | None = None,
     parent_slug: str | None = None,
+    slug: str | None = None,
     for_agent: bool = False,
     blocked_by: list[str] | None = None,
     due_date: str | None = None,
     detail: str | None = None,
     document_file: str | None = None,
 ) -> str:
-    """Create a task from inline params, or from a Task Document file (document_file takes precedence)."""
+    """Create a task from inline params, or from a Task Document file (document_file takes precedence).
+
+    slug: optional client-specified slug (task-xxx) for the new task; defaults to server-assigned.
+    """
     if document_file is not None:
         text = _read_temp_markdown(document_file)
         try:
@@ -194,6 +198,8 @@ async def create_task(
             "scope": scope,
             "for_agent": for_agent,
         }
+        if slug is not None:
+            body["slug"] = slug
         if kind is not None:
             body["kind"] = kind
         if parent_slug is not None:
@@ -204,6 +210,11 @@ async def create_task(
             body["due_date"] = due_date
         if detail is not None:
             body["detail"] = detail
+
+    if "slug" in body and (
+        not isinstance(body["slug"], str) or not SLUG_RE.match(body["slug"])
+    ):
+        raise ToolError("slug 必须是 task-xxx 形式（xxx 不能含空白或 /）")
 
     raw = await client.create_task(body)
     return json.dumps(
@@ -239,7 +250,7 @@ async def update_task(
     parent_slug: str | None = None,
     detail: str | None = None,
 ) -> str | None:
-    """Update a task's fields and/or detail. Use slug (single) or slugs (batch status update, mutually exclusive)."""
+    """Update a task's fields and/or detail. Use slug (single) or slugs（list)"""
     if slug is not None and slugs is not None:
         raise ToolError("slug 和 slugs 不能同时提供")
     if slugs is not None:

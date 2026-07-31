@@ -6,7 +6,10 @@ front matter). This module:
 
 * splits the document into a ``Document`` (front-matter metadata + named
   Markdown sections + raw body for the ``full`` view),
-* validates required sections and the Chinese enum literals,
+* validates the YAML front matter strictly (presence, mapping shape,
+  required fields, Chinese enum literals) while treating the Markdown
+  body as a convention — ``##`` sections are parsed when present but
+  never required, so free-form detail is accepted,
 * compiles the parsed structure into the API body used by the legacy
   ``create_task`` / ``update_task`` paths (still used by the deprecated
   v2 tools).
@@ -28,6 +31,10 @@ from .models import TaskKind, TaskPriority, TaskType
 
 FRONT_MATTER_DELIM = "---"
 
+# Client-specified slugs must look like ``task-xxx`` and must be URL-safe
+# (no whitespace or path separators — the slug becomes a URL path segment).
+SLUG_RE = re.compile(r"^task-[^\s/]+$")
+
 # Canonical section names are case-folded. The keys here are the canonical
 # (lowercase, stripped) form; values are the matching alternative names.
 CANONICAL_SECTIONS: dict[str, tuple[str, ...]] = {
@@ -39,8 +46,6 @@ CANONICAL_SECTIONS: dict[str, tuple[str, ...]] = {
     "decisions": ("decisions",),
     "out of scope": ("out of scope", "out_of_scope"),
 }
-
-REQUIRED_SECTIONS: tuple[str, ...] = ("goal", "acceptance criteria")
 
 SECTION_ORDER: tuple[str, ...] = (
     "goal",
@@ -81,6 +86,8 @@ class TaskDocument:
             "priority": self.metadata["priority"],
             "scope": self.metadata["scope"],
         }
+        if "slug" in self.metadata:
+            body["slug"] = self.metadata["slug"]
         if "kind" in self.metadata:
             body["kind"] = self.metadata["kind"]
         if "for_agent" in self.metadata:
@@ -98,12 +105,19 @@ class TaskDocument:
         return body
 
     def _render_markdown(self) -> str:
-        """Render canonical sections plus extras into a single Markdown body."""
-        out: list[str] = []
+        """Render canonical sections plus extras into a single Markdown body.
+
+        A body with no ``##`` sections falls back to its raw text, so
+        free-form detail is never silently dropped.
+        """
         ordered_canonicals = [c for c in SECTION_ORDER if c in self.sections]
         # Anything not in SECTION_ORDER (extras) keeps its original order at
         # the end so nothing is silently dropped from ``full`` views.
         extras = {e.canonical for e in self.extra_sections}
+        if not ordered_canonicals and not extras:
+            raw = self.raw_markdown.strip()
+            return raw + "\n" if raw else ""
+        out: list[str] = []
         for canonical in ordered_canonicals:
             out.append(f"## {canonical.title()}")
             out.append(self.sections[canonical].rstrip())
@@ -181,8 +195,8 @@ def _parse_sections(
         text = "\n".join(current_lines).strip("\n")
         canonical_name = _section_canonical(current_title)
         if canonical_name in CANONICAL_SECTIONS:
-            if canonical_name in canonical:
-                raise DocumentError(f"section 重复: {current_title}")
+            # Last occurrence wins — body structure is a convention, not
+            # something the parser rejects on.
             canonical[canonical_name] = text
         else:
             extras.append(DocumentSection(canonical=canonical_name, body=text))
@@ -204,7 +218,7 @@ def _parse_sections(
     return canonical, extras, unknown
 
 
-# --- validation -------------------------------------------------------------
+# --- metadata validation ---------------------------------------------------
 
 
 def _validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -231,6 +245,10 @@ def _validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     else:
         metadata["scope"] = scope.strip()
 
+    slug = metadata.get("slug")
+    if slug is not None and (not isinstance(slug, str) or not SLUG_RE.match(slug)):
+        errors.append("slug 必须是 task-xxx 形式（xxx 不能含空白或 /）")
+
     kind = metadata.get("kind")
     if kind is not None and kind not in TaskKind.__args__:
         errors.append(f"kind 必须是 {TaskKind.__args__} 之一，实际: {kind!r}")
@@ -254,24 +272,20 @@ def _validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     return metadata
 
 
-def _validate_sections(sections: dict[str, str]) -> None:
-    missing = [s for s in REQUIRED_SECTIONS if not sections.get(s)]
-    if missing:
-        labels = [s.title() for s in missing]
-        raise DocumentError(f"必填 section 缺失: {', '.join(labels)}")
-    ac = sections["acceptance criteria"]
-    if not any(line.lstrip().startswith("- [ ]") for line in ac.splitlines()):
-        raise DocumentError("Acceptance Criteria 必须至少包含一条 `- [ ]` 形式的检查项")
-
-
 # --- entry point ------------------------------------------------------------
 
 
 def parse_task_document(text: str) -> TaskDocument:
-    """Parse a single Task Document and validate it.
+    """Parse a Task Document, validating strictly only the YAML front matter.
+
+    The Markdown body is treated as a convention: ``##`` sections are
+    parsed when present (later duplicates overwrite), and a body without
+    sections is preserved verbatim as free-form detail.
 
     Args:
-        text: Full file contents as UTF-8 text.
+        text: Full file contents as UTF-8 text.  An optional ``slug``
+            front-matter field (``task-xxx``) requests a client-specified
+            slug on create.
 
     Returns:
         A :class:`TaskDocument` ready to be turned into an API body.
@@ -283,7 +297,6 @@ def parse_task_document(text: str) -> TaskDocument:
         raise DocumentError("Task Document 必须以 YAML front matter 开头（--- 包裹）")
     metadata = _validate_metadata(metadata)
     sections, extras, _unknown = _parse_sections(body)
-    _validate_sections(sections)
     return TaskDocument(
         metadata=metadata,
         sections=sections,

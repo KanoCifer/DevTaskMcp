@@ -63,22 +63,57 @@ def test_rejects_bad_enum():
         parse_task_document_file(FIXTURES / "bad_enum.md")
 
 
-def test_rejects_missing_goal():
-    with pytest.raises(DocumentError, match="Goal"):
-        parse_task_document_file(FIXTURES / "missing_goal.md")
+def test_front_matter_slug_pass_through():
+    raw = (
+        "---\n"
+        'title: "Slugged"\n'
+        'task_type: "优化"\n'
+        'priority: "P1 高"\n'
+        'scope: "后端-Python"\n'
+        'slug: "task-42"\n'
+        "---\n\n"
+        "## Goal\n\nx\n"
+    )
+    doc = parse_task_document(raw)
+    assert doc.to_body()["slug"] == "task-42"
 
 
-def test_rejects_missing_acceptance_criteria():
-    with pytest.raises(DocumentError, match="Acceptance Criteria"):
-        parse_task_document_file(FIXTURES / "missing_ac.md")
+def test_rejects_bad_front_matter_slug():
+    raw = (
+        "---\n"
+        'title: "Slugged"\n'
+        'task_type: "优化"\n'
+        'priority: "P1 高"\n'
+        'scope: "后端-Python"\n'
+        'slug: "weird slug"\n'
+        "---\n\n"
+        "## Goal\n\nx\n"
+    )
+    with pytest.raises(DocumentError, match="slug"):
+        parse_task_document(raw)
 
 
-def test_rejects_duplicate_section():
-    with pytest.raises(DocumentError, match="section 重复"):
-        parse_task_document_file(FIXTURES / "duplicate_section.md")
+def test_accepts_free_form_body_without_sections():
+    """Body structure is a convention — no Goal/AC required."""
+    doc = parse_task_document_file(FIXTURES / "missing_goal.md")
+    assert doc.section("goal") is None
+    assert doc.metadata["title"] == "Missing Goal"
 
 
-def test_acceptance_criteria_requires_checkbox_syntax():
+def test_accepts_body_without_acceptance_criteria():
+    doc = parse_task_document_file(FIXTURES / "missing_ac.md")
+    assert doc.section("acceptance criteria") is None
+    assert "Has a goal" in doc.section("goal")
+
+
+def test_duplicate_section_last_wins():
+    doc = parse_task_document_file(FIXTURES / "duplicate_section.md")
+    assert doc.section("goal") == "Second."
+    assert "Steps." in doc.section("plan")
+
+
+def test_acceptance_criteria_requires_no_checkbox_syntax():
+    """AC without `- [ ]` items is accepted (reference is optional)."""
     raw = (
         "---\n"
         'title: "t"\n'
@@ -89,5 +124,5 @@ def test_acceptance_criteria_requires_checkbox_syntax():
         "## Goal\n\nstuff\n\n"
         "## Acceptance Criteria\n\n- Not a checkbox\n"
     )
-    with pytest.raises(DocumentError, match="Acceptance Criteria"):
-        parse_task_document(raw)
+    doc = parse_task_document(raw)
+    assert "Not a checkbox" in doc.section("acceptance criteria")

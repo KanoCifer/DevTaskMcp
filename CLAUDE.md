@@ -62,8 +62,8 @@ Skills live in the repo-root `skills/` directory (`skills/devtask-plan/`, `skill
 
 - All long text lives in `detail` (a Task Document). The MCP server parses `---`-delimited YAML front matter for structured fields (same convention as skill `SKILL.md`) and renders the rest as a fixed set of Markdown sections (`Goal`, `Plan`, `Acceptance Criteria`, `Constraints`, `Context Pointers`, `Decisions`, `Out of Scope`).
 - `create_task` / `update_task` are the core write tools. Use `create_task(document_file=...)` for spec/simple tasks (file-backed YAML front matter), `create_task` with inline params for subtasks, and `update_task` for status or detail edits.
-- `get_task(slug, view=...)` parses `detail` into one of four views. The default is `summary` so the agent never accidentally pulls the full body into context.
-- `list_children` always returns summary records. Children are fetched with a richer view only when needed.
+- `get_task(slug, view=...)` supports two views: `summary` (structured fields only) and `full` (raw task incl. detail). The default is `summary` so the agent never accidentally pulls the full body into context.
+- `list_children` always returns summary records. Children are fetched with `full` only when needed.
 - `update_task` covers state + detail edits. For full Task Document replacement pass `detail=`; for status changes pass `status=`.
 
 See `docs/task-document-v1.md` for the full Task Document spec.

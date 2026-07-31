@@ -10,26 +10,27 @@ argument-hint: [task slug to review, e.g. task-N]
 
 只读验证 + 轻量清理修复；不做大范围重构。
 
-v3：只读 `get_task(slug, view="review")`，**不要**请求 `full` 视图。`review` 视图
-已经返回结构化的 `sections.acceptance_criteria`（list）、`sections.constraints`、
-`sections.context_pointers`，没有 Goal/Plan 等长文本。
+v3：只读 `get_task(slug, view="full")`，从 `detail` 里解析 Task Document
+章节。视图只有 `summary`（结构化字段）和 `full`（含完整 detail）两种。
+子任务检查项从 `## Acceptance Criteria` 的 `- [ ]` / `- [x]` 解析。
 
 ## 流程
 
 ### 1. 拉取任务
 
 ```text
-get_task(slug, view="review")
+get_task(slug, view="full")
 ```
 
 `kind == "spec"` → `list_children(parent_slug=slug)` 获取 summary 列表。
-不要一次性拉所有 child 的 `review` 视图；只对需要审的 child 单独 `get_task(child, view="review")`。
+不要一次性拉所有 child 的 `full` 视图；只对需要审的 child 单独 `get_task(child, view="full")`。
 
 `blocked_by` 非空 → 检查 blocker 状态：未完成则建议先执行 blocker，**不继续往下审**。
 
 ### 2. 验收条件验证（只读）
 
-`sections.acceptance_criteria` 已经是 `[{text, checked}, ...]` 列表。空则告知用户无可验证内容但仍继续后续视角。
+解析 `## Acceptance Criteria` 章节，逐条 `- [ ]`（未勾）`- [x]`（已勾）检查。
+空则告知用户无可验证内容但仍继续后续视角。
 
 分类验证方式：
 
@@ -41,7 +42,7 @@ get_task(slug, view="review")
 
 ### 3. 四视角清理审查（并行）
 
-按 `sections.context_pointers` 找到被改动的代码。**改动范围不明时跳过本节并在报告里注明**。
+按 `## Context Pointers` 章节里的 `path:line` 找到被改动的代码。**改动范围不明时跳过本节并在报告里注明**。
 
 沿四个视角各派一个审查视角并行跑（单消息多 Agent 并发）。每个视角返回 `file:line` + 一句话 `summary` + 代价 + 具体修法。
 
@@ -86,4 +87,4 @@ parent：子任务 AC 全部 ✅ + 自身 AC 全部 ✅ → `update_task(slugs=[
 - **改动范围不明时跳过清理节** — 不要凭记忆去猜 diff
 - **显式 skip > 默默跳过** — 每个不修的 finding 必有一句话 reason
 - **Parent 递归** — 子任务全部 ✅ + 自身 AC 全部 ✅ 才翻 parent
-- **永远用 review 视图** — 不要请求 full 视图拉长文本
+- **只用 full 视图** — 视图只有 `summary` / `full`；验收需要 detail 全文时用 `full`

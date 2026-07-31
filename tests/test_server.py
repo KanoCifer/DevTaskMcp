@@ -185,6 +185,37 @@ def test_create_task_omits_detail_when_not_given(_patch_client):
     assert "detail" not in _patch_client.calls[0][1]
 
 
+def test_create_task_sends_client_slug(_patch_client):
+    payload = json.loads(
+        asyncio.run(
+            server.create_task(
+                title="Slim",
+                task_type="优化",
+                priority="P1 高",
+                scope="后端-Python",
+                slug="task-42",
+            )
+        )
+    )
+    assert payload == {"slug": "task-1", "title": "ok"}
+    method, body = _patch_client.calls[0]
+    assert method == "create_task"
+    assert body["slug"] == "task-42"
+
+
+def test_create_task_rejects_bad_slug(_patch_client):
+    with pytest.raises(ToolError, match="task-xxx"):
+        asyncio.run(
+            server.create_task(
+                title="Bad",
+                task_type="优化",
+                priority="P1 高",
+                scope="后端-Python",
+                slug="weird slug",
+            )
+        )
+
+
 def test_update_task_sends_status(_patch_client):
     payload = json.loads(
         asyncio.run(server.update_task(slug="task-1", status="进行中"))
@@ -218,6 +249,7 @@ def test_create_task_via_document_file_sends_compiled_body(_patch_client):
         'priority: "P1 高"\n'
         'scope: "后端-Python"\n'
         'kind: "subtask"\n'
+        'slug: "task-77"\n'
         "for_agent: true\n"
         "---\n\n"
         "## Goal\n\nDo the thing.\n\n"
@@ -237,6 +269,7 @@ def test_create_task_via_document_file_sends_compiled_body(_patch_client):
     assert body["title"] == "From doc"
     assert body["type"] == "优化"
     assert body["kind"] == "subtask"
+    assert body["slug"] == "task-77"
     assert body["for_agent"] is True
     assert "## Goal" in body["detail"]
     for legacy in (

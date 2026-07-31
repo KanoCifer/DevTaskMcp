@@ -11,8 +11,13 @@ argument-hint: [Which Task do you want to execute?<task-N>]
 ### 1. 拿到任务
 
 ```text
-get_task(slug, view="execute")
+get_task(slug, view="full")
 ```
+
+从返回的 `detail` 里解析 Task Document 章节：`## Goal` / `## Plan` /
+`## Acceptance Criteria`（`- [ ]` 检查项）/ `## Constraints` /
+`## Context Pointers`。视图只有 `summary`（结构化字段）和 `full`
+（含完整 detail）两种。
 
 如果 `kind == "spec"`，先 `list_children(parent_slug=slug)` 拿子任务列表，
 挑下一个 subtask 执行，**不要**执行 spec 自身。
@@ -21,16 +26,16 @@ get_task(slug, view="execute")
 
 ### 2. 读上下文
 
-按 `sections.context_pointers`（已经在视图里）读代码/文档。不靠记忆。
+按 `## Context Pointers` 章节里的 `path:line` 读代码/文档。不靠记忆。
 
 ### 3. 执行
 
-按 `sections.plan`（在 execute 视图里）实现。改动紧贴 spec，不顺手重构。
-`sections.constraints` 是硬性边界，违反之前先确认。
+按 `## Plan` 章节实现。改动紧贴 spec，不顺手重构。
+`## Constraints` 是硬性边界，违反之前先确认。
 
 ### 4. 验证 + 更新
 
-逐条检查 `sections.acceptance_criteria`（list，每条 `{text, checked}`）。
+逐条检查 `## Acceptance Criteria` 的 `- [ ]` 检查项（`- [x]` 已勾选）。
 先全部检查再修，修完重跑直到全过。
 
 需要把决策固化进 detail 时使用 `update_task(slug, detail=...)` 修改 Decisions 章节。

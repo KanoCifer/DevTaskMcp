@@ -8,7 +8,7 @@ argument-hint:
 # devtask-plan
 
 把模糊需求变成 **spec** 和一组可执行的子任务。spec 用
-`create_task(document_file=<path_to_file>)`（文件式 YAML front matter + Markdown 章节）
+`create_task(document_file=<path_to_file>)`（文件式 YAML front matter + Markdown）
 落库，每个 subtask 用 `create_task`（内联 detail 参数）创建。
 
 ## 流程
@@ -29,15 +29,13 @@ argument-hint:
 
 原则：能从代码回答的不问；具体到"另一个工程师能据此实现"；hard-to-reverse 决策必须明确确认。
 
-方案确定后用 `AskUserQuestion` 收集 title / type / priority / blocked_by（第一选项推荐值）。scope 从讨论中确定不单独提问。
-
 ### 3. 写 spec 的 Task Document
 
 用 `Write` 写一份 spec 的 Task Document 到 `/tmp/devtask-plan-<短名称>.md`，使用 `references/spec-template.md`。
 
-spec 只放公共内容（Goal / Decisions / Constraints / Context Pointers），不放子任务的 Plan / AC。
-
 ### 4. 落库 spec
+
+通过文件路径创建spec
 
 ```text
 create_task(document_file="/tmp/devtask-plan-<短名称>.md")
@@ -47,22 +45,21 @@ create_task(document_file="/tmp/devtask-plan-<短名称>.md")
 
 ### 5. 逐个创建 subtask
 
-对每个子任务调用 `create_task`，内联 detail 参数传入子任务自身的 Markdown 正文。
-
 ```text
 create_task(
     title="<子任务标题>",
     task_type="功能需求",      # 或 优化 / 问题 / 技术债
     priority="P1 高",
-    scope="后端-Python",
+    scope="Backend-Python",
     kind="subtask",
+    slug="task-42",              # 可选, 需大于parent_slug
     parent_slug="<spec-slug>",   # 上一步返回的 slug
     blocked_by=["task-N1"],      # 同层依赖（可选）
     detail="## Goal\n...\n\n## Plan\n...\n\n## Acceptance Criteria\n- [ ] ..."
 )
 ```
 
-每个 subtask 只放增量内容（Goal / Plan / Acceptance Criteria），重复的不抄父。
+每个 subtask 只放增量内容，重复的不抄父。
 
 ### 6. 交付
 
@@ -78,11 +75,7 @@ Approved? 启动：/devtask:devtask-doit task-N1
 ## Rules
 
 - **Spec 必须拆** — 不允许只产出计划文档不落库
-- **写一次文件** — spec 的 Task Document 写 /tmp 后不要再在对话里复述
-- **信任 MCP 视图** — detail 正文、AC 列表、context pointers 由 MCP 解析，不要重复解析或复述
-- **子任务不依赖 spec slug 以外的东西** — blocked_by 用已知 slug，不要猜
 - **父不放子任务的 Plan / AC** — 父只保留公共信息，子任务各写各的
 - **Fall fast** — 核心假设不成立 → 已搁置，detail 记录原因
 - **Source of truth** — 修改走 `update_task(slug, detail=...)`；状态变更走 `update_task(slug, status=...)`
-- **AskUserQuestion** — 第一选项推荐值；options 必须有 label + description
 - **Context Pointers** — 只列 read 过的文件，`path:line` 格式

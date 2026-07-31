@@ -16,6 +16,10 @@ spec 级别的公共目标。
 - 关键决策 1：<结论 + 理由>
 - 关键决策 2：<结论 + 理由>
 
+## Acceptance Criteria
+
+- [] xxx
+
 ## Constraints
 
 - 硬性边界（技术栈、性能红线等）
