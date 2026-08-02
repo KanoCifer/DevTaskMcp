@@ -29,7 +29,7 @@ def test_parses_valid_subtask_document():
     assert doc.metadata["for_agent"] is True
     assert doc.section("goal").startswith("Drop the legacy long-text fields")
     assert "- [ ]" in doc.section("acceptance criteria")
-    assert "src/devtask-mcp/server.py:235" in doc.section("context pointers")
+    assert "src/devtask_mcp/server.py:235" in doc.section("context pointers")
 
 
 def test_compiles_to_api_body():

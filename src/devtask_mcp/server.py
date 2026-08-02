@@ -333,10 +333,15 @@ async def list_children(parent_slug: str) -> str:
 # Entry-point
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
+
+def main() -> None:
     logging.basicConfig(level=logging.INFO)
     try:
         asyncio.run(mcp.run_stdio_async())
     except KeyboardInterrupt:
         pass
     sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

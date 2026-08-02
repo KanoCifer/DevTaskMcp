@@ -7,8 +7,7 @@
         "--directory",
         "${CLAUDE_PLUGIN_ROOT}",
         "python",
-        "-m",
-        "devtask-mcp.server"
+        "run.py"
       ]
     }
   }

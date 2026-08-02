@@ -31,7 +31,7 @@ Drop the legacy long-text fields from the MCP create/update surface.
 
 ## Context Pointers
 
-- `src/devtask-mcp/server.py:235`
+- `src/devtask_mcp/server.py:235`
 - `skills/devtask-plan/SKILL.md:35`
 
 ## Out of Scope
