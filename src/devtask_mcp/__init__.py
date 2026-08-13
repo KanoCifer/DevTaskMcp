@@ -2,8 +2,9 @@
 
 devtask-mcp: MCP server wrapping the kanocifer-chat dev-task API (v3).
 
-FastMCP server exposing tools over stdio.  Every tool accepts the
-``slug`` form (``task-N``) as the human-facing identifier.
+FastMCP server exposing tools over streamable-http (endpoint /mcp/).
+Every tool accepts the ``slug`` form (``task-N``) as the human-facing
+identifier.
 
 The MCP surface is intentionally narrow.  Workflow orchestration lives
 in skills (``devtask-doit``, ``devtask-plan``, ``devtask-simple``,

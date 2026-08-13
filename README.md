@@ -27,7 +27,7 @@ claude plugins marketplace add KanoCifer/DevTaskMcp
 claude plugins install devtask@devtask
 ```
 
-安装后 3 个技能均自动可用，MCP server 自动启动，无需手动配置 `.mcp.json`。
+安装后 3 个技能均自动可用。MCP server 走 `.mcp.json` 定义的远程 URL —— 部署后把 `.mcp.json` 里的域名和 token 换成真实值，本地即通过远程实例提供服务。
 
 或在 Claude 对话框中交互完成：
 
@@ -49,13 +49,10 @@ claude --plugin-dir /path/to/DevTaskMcp
 把技能目录链接到 Claude Code 的技能路径，并手动配置 MCP server：
 
 ```bash
-# 1. 配置 MCP server（添加到 ~/.claude.json 或项目 .mcp.json）
-#    带 uv：
-#      "command": "uv",
-#      "args": ["run", "--directory", "/path/to/DevTaskMcp", "python", "-m", "devtask_mcp.server"]
-#    不带 uv：
-#      "command": "/path/to/DevTaskMcp/.venv/bin/python",
-#      "args": ["-m", "devtask_mcp.server"]
+# 1. 配置 MCP server（添加到 ~/.claude.json 或项目 .mcp.json，指向已部署的远程实例）
+#    "type": "http",
+#    "url": "https://你的域名/mcp/",
+#    "headers": { "Authorization": "Bearer 你的MCP_AUTH_TOKEN" }
 
 # 2. 链接技能目录
 # 作为 user-level 技能（全局可用）
@@ -97,18 +94,40 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-然后在 `.mcp.json` 中指向 `.venv/bin/python`：
+然后在 `.mcp.json` 中指向远程实例（同「手动安装」第 1 步的 URL 配置）。
+
+## 远程部署（streamable-http）
+
+`devtask_mcp.server` 以 **streamable-http** transport 运行：一个长驻进程服务所有调用方，供外部 agent（Claude Code remote、Cursor 等）通过 URL 调用。
+
+**1. 构建并启动（本机验证）**
+
+```bash
+cp .env.example .env       # 填 DEVTASK_API_KEY、MCP_AUTH_TOKEN
+docker compose up --build
+```
+
+compose 只把端口绑到 `127.0.0.1:8003` —— 服务不直接暴露公网。
+
+**2. 反向代理 + TLS（Nginx/Caddy 等，自行部署）**
+
+把 `127.0.0.1:8003` 转发到 `https://你的域名/mcp/`（streamable-http 的标准端点路径是 `/mcp/`）。请求头必须原样透传，尤其是 `Authorization` 和 streamable-http 需要的 `Mcp-Session-Id`。
+
+**3. 客户端连接**
 
 ```json
 {
   "mcpServers": {
     "devtask": {
-      "command": "/path/to/DevTaskMcp/.venv/bin/python",
-      "args": ["-m", "devtask_mcp.server"]
+      "type": "http",
+      "url": "https://你的域名/mcp/",
+      "headers": { "Authorization": "Bearer 你的MCP_AUTH_TOKEN" }
     }
   }
 }
 ```
+
+> `MCP_AUTH_TOKEN` 留空时服务不启用应用层鉴权 —— 生产务必设置，并在反代层额外加 IP 白名单/限流。
 
 ## 配置
 
@@ -118,6 +137,11 @@ cp .env.example .env
 ```
 
 `DEVTASK_API_KEY` 是 kanocifer-chat API 的 Bearer <REDACTED> 为空时 server 启动会报错。
+
+远程部署时还需配置：
+
+- `MCP_AUTH_TOKEN` — 外部 MCP 客户端调用时携带的 Bearer token。留空则关闭应用层鉴权（仅本地/内网）。
+- `MCP_HOST` / `MCP_PORT` — HTTP 监听地址与端口，默认 `0.0.0.0:8003`。
 
 ## 使用
 
@@ -221,6 +245,8 @@ DevTaskMcp/
 │   ├── client.py                # HTTP client，信封剥离
 │   ├── models.py                # Pydantic 模型 + 中文枚举
 │   └── server.py                # FastMCP，6 个工具注册（已 slug 化）
+├── Dockerfile                 # 容器镜像（uv slim + 锁文件）
+├── docker-compose.yml         # 单服务编排，端口回环绑定 8003
 ├── pyproject.toml
 ├── CLAUDE.md
 └── README.md
@@ -232,7 +258,7 @@ DevTaskMcp/
 - **错误原样传播：** 非 2xx 或 `code != 0` 抛出 `DevTaskAPIError`，错误信息原样呈现给 agent。
 - **`per_page` 上限 20**，无论调用方传入多大值。
 - **HTTP 超时：** 15.0 秒。
-- **单例长连接 client** 在模块级别——安全，因为 FastMCP stdio 每个 agent session 只运行一个 server。
+- **单例长连接 client** 在模块级别——streamable-http 下单个长驻进程服务所有调用方，client 无会话状态，共享安全。
 - **Slug 是规范的人类 ID**——在所有 UI、对话和 MCP 工具引用中使用 `task-N`。后端已全面 slug 化，不再接受 ObjectID 输入。
 - **`kind` / `parent_slug` 语义分离：** `parent_slug` 承载子→父的结构归属（`devtask_list_children` 走此索引），`blocked_by` 只承载同层前置依赖（执行顺序）。
 

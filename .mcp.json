@@ -1,14 +1,11 @@
 {
   "mcpServers": {
     "devtask": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "python",
-        "run.py"
-      ]
+      "type": "http",
+      "url": "https://api.kanocifer.chat/mcp/",
+      "headers": {
+        "Authorization": "Bearer YOUR_MCP_AUTH_TOKEN"
+      }
     }
   }
 }

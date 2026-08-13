@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sys
 from collections.abc import Callable
 from datetime import datetime
@@ -12,6 +13,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
 from .client import DevTaskAPIError, DevTaskClient, DevTaskError
 from .models import TaskKind, TaskPriority, TaskStatus, TaskType
@@ -24,10 +26,21 @@ logger = logging.getLogger("devtask-mcp")
 # Server
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP("devtask", mask_error_details=True)
+MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
+MCP_PORT = int(os.environ.get("MCP_PORT", "8003"))
+MCP_AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
 
-# Module-level client — FastMCP stdio runs one server per agent session so a
-# single long-lived client is fine.
+# Static Bearer-token auth. When MCP_AUTH_TOKEN is unset the server runs
+# without application-level auth — lock it down in front of the reverse proxy.
+auth = (
+    StaticTokenVerifier({MCP_AUTH_TOKEN: {"client_id": "devtask", "scopes": []}})
+    if MCP_AUTH_TOKEN
+    else None
+)
+mcp = FastMCP("devtask", mask_error_details=True, auth=auth)
+
+# Module-level client — one long-lived process serves all sessions, and the
+# client holds no per-session state, so a single shared instance is safe.
 client = DevTaskClient()
 
 
@@ -337,7 +350,14 @@ async def list_children(parent_slug: str) -> str:
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     try:
-        asyncio.run(mcp.run_stdio_async())
+        asyncio.run(
+            mcp.run_http_async(
+                transport="streamable-http",
+                host=MCP_HOST,
+                port=MCP_PORT,
+                path="/mcp/",
+            )
+        )
     except KeyboardInterrupt:
         pass
     sys.exit(0)

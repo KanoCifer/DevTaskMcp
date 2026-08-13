@@ -9,12 +9,17 @@ DevTaskMcp is an MCP server (Python, FastMCP) that wraps the kanocifer.chat dev-
 ## Commands
 
 ```bash
-# Run the MCP server (stdio, one server per agent session)
+# Run the MCP server (streamable-http, binds 0.0.0.0:8003, endpoint /mcp/)
 uv run python -m devtask_mcp.server
+
+# Docker deploy
+docker compose up --build
 
 # Run the test suite
 uv run --group dev python -m pytest tests -q
 ```
+
+Server env: `MCP_HOST`/`MCP_PORT` (default `0.0.0.0:8003`), `MCP_AUTH_TOKEN` (static Bearer token; empty disables app-level auth). The container binds loopback only — a reverse proxy in front terminates TLS.
 
 ## Environment
 
@@ -56,7 +61,7 @@ Skills live in the repo-root `skills/` directory (`skills/devtask-plan/`, `skill
 - Non-2xx or `code != 0` raises `DevTaskAPIError` and propagates verbatim to the agent (by design).
 - `per_page` is capped at 20 regardless of caller input.
 - HTTP timeout: 15.0 s.
-- A single long-lived `DevTaskClient` lives at module level — safe because FastMCP stdio runs one server per agent session.
+- A single long-lived `DevTaskClient` lives at module level — safe because the client holds no per-session state and one server process serves all streamable-http sessions.
 
 ## v3 architecture (Task Document)
 

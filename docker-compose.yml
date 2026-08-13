@@ -1,0 +1,10 @@
+services:
+  devtask-mcp:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Bind loopback only — put your reverse proxy (TLS) in front.
+      - "127.0.0.1:8003:8003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
