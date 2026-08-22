@@ -8,9 +8,7 @@ argument-hint: [Brief description of the small task, bug fix, or improvement]
 
 把简单意图快速变成**一个落库的可执行 task**。
 
-v3 工作流：唯一长文本是 `detail`（Markdown）。方案、验收标准、约束、上下文指针
-都写在 **Task Document** 里面。
-
+遵循 `../references/task-contract.md` 的 Task Document 契约。
 ## 模式选择
 
 ```
@@ -43,7 +41,7 @@ v3 工作流：唯一长文本是 `detail`（Markdown）。方案、验收标准
 
 ### Task Document 模板
 
-使用 `references/task-document-template.md`。`Goal` 和 `Acceptance Criteria` 必填。AC 必须 `- [ ]` 开头。`Context Pointers` 必须是 `path:line` 格式。MCP 边界会校验中文 enum 并拒绝非 `/tmp` 下的文件。
+使用 `references/task-document-template.md`。`Goal` 和 `Acceptance Criteria` 必填；AC 推荐 `- [ ]` 格式。`Context Pointers` 使用 `path:line` 格式。`document_file` 仅要求绝对路径、`.md`、存在、最大 2 MiB、UTF-8，不要求位于 `/tmp`。
 
 ## Rules
 

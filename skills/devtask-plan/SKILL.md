@@ -7,10 +7,7 @@ argument-hint:
 
 # devtask-plan
 
-把模糊需求变成 **spec** 和一组可执行的子任务。spec 用
-`create_task(document_file=<path_to_file>)`（文件式 YAML front matter + Markdown）
-落库，每个 subtask 用 `create_task`（内联 detail 参数）创建。
-
+把模糊需求变成 **spec** 和一组可执行的子任务。遵循 `../references/task-contract.md`：spec 用 `create_task(document_file=<path>)` 落库，subtask 用内联 `create_task` 创建。
 ## 流程
 
 ### 1. 探索
@@ -23,11 +20,11 @@ argument-hint:
 
 ### 2. 方案 Grilling
 
-调用 `/devtask:devtask-grill` skill 沿方案树逐枝拷问，一次一问，附推荐答案 + 理由，等回答再出下一个。
+调用 `/devtask:devtask-grill`：每轮同时询问当前 frontier 的所有决策，给出推荐答案；等待用户回答后再扩展下一轮。
 
-顺序：方案选型 → 关键决策 → 实现步骤 → 验收条件 → 脆弱假设 → 约束红线
+顺序：方案选型 → 关键决策 → 实现步骤 → 验收条件 → 脆弱假设 → 约束红线。
 
-原则：能从代码回答的不问；具体到"另一个工程师能据此实现"；hard-to-reverse 决策必须明确确认。
+能从代码查到的事实不问；提问必须具体到另一个工程师可以据此实现。
 
 ### 3. 写 spec 的 Task Document
 
@@ -74,8 +71,8 @@ Approved? 启动：/devtask:devtask-doit task-N1
 
 ## Rules
 
-- **Spec 必须拆** — 不允许只产出计划文档不落库
-- **父不放子任务的 Plan / AC** — 父只保留公共信息，子任务各写各的
-- **Fall fast** — 核心假设不成立 → 已搁置，detail 记录原因
-- **Source of truth** — 修改走 `update_task(slug, detail=...)`；状态变更走 `update_task(slug, status=...)`
-- **Context Pointers** — 只列 read 过的文件，`path:line` 格式
+- **Spec 必须拆并落库** — 不只产出计划文档
+- **父只放公共信息** — 子任务各自写 Plan / AC
+- **Fall fast** — 核心假设不成立则记录原因并 `已搁置`
+- **Source of truth** — 正文用 `update_task(slug, detail=...)`，状态用 `update_task(slug, status=...)`
+- **Context Pointers** — 只列实际读过的 `path:line`

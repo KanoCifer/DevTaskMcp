@@ -94,26 +94,22 @@ MAX_MARKDOWN_FILE_BYTES = 2 * 1024 * 1024
 
 
 def _read_temp_markdown(file_path: str) -> str:
-    """Read Markdown staged in the shared temporary directory.
+    """Read a Markdown document from an absolute local path.
 
     File-backed text avoids sending the same long plan once to the model and
-    again in an MCP argument.  Restricting reads to the temporary directory
-    prevents this convenience parameter from becoming an arbitrary file-read
-    primitive when the MCP server calls the remote API.
+    again in an MCP argument.
     """
     candidate = Path(file_path)
     if not candidate.is_absolute():
-        raise ToolError("document_file 必须是 /tmp 下的绝对路径")
+        raise ToolError("document_file 必须是绝对路径")
 
     try:
         resolved = candidate.resolve(strict=True)
-        temp_root = Path("/tmp").resolve()
-        resolved.relative_to(temp_root)
-    except (FileNotFoundError, OSError, ValueError) as exc:
-        raise ToolError("document_file 必须指向 /tmp 下存在的 Markdown 文件") from exc
+    except (FileNotFoundError, OSError) as exc:
+        raise ToolError("document_file 必须指向存在的 Markdown 文件") from exc
 
     if resolved.suffix.lower() != ".md" or not resolved.is_file():
-        raise ToolError("document_file 必须指向 /tmp 下的 .md 文件")
+        raise ToolError("document_file 必须指向 .md 文件")
 
     try:
         if resolved.stat().st_size > MAX_MARKDOWN_FILE_BYTES:

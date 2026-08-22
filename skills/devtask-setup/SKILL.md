@@ -7,29 +7,23 @@ disable-model-invocation: true
 
 # devtask-setup
 
-让一个新项目具备 devtask 工作流——环境检查 → 写引导 → 可选落库第一批 task。
+让一个新项目具备 devtask 工作流：检查环境，追加 CLAUDE.md 引导，交付初始化结果。
 
 ## 流程
 
 ### 1. 环境检查
 
-- 检查环境变量是否存在且 `DEVTASK_API_KEY` 非空
-- 调用 `get_task("task-1")` 验证 API 连通性（404 也表明连通）
+- 检查 `DEVTASK_API_KEY` 非空
+- 调用 `get_task("task-1")` 验证连通性（404 也算连通）
 
 **失败处理：**
 
-- `DEVTASK_API_KEY` 为空 → 告知用户需要从 kanocifer.chat 获取 API Key，终止
-- API 调用失败（`DevTaskAPIError`）→ 报告错误信息，终止
+- `DEVTASK_API_KEY` 为空 → 提示从 kanocifer.chat 获取后终止
+- API 调用失败 → 报告错误并终止
 
 ### 2. 写 CLAUDE.md 引导
 
-在项目的 `CLAUDE.md`（或 `~/.claude/CLAUDE.md`）中写入 devtask 工作流引导，使后续 agent session 自动遵循。
-
-**检查：** 先读取现有 CLAUDE.md，若已包含 `## devtask 工作流` 章节则告知用户并跳过写入。
-
-**写入内容：** 读取 `references/claude-md-template.md`，根据项目实际情况调整 scope 示例后，追加到 CLAUDE.md 末尾。
-
-**写入方式：** 追加到 CLAUDE.md 末尾（若已有 devtask 章节则不重复写入）。写入后告知用户已添加引导。
+读取项目的 `CLAUDE.md`（或 `~/.claude/CLAUDE.md`）。若已有 `## devtask 工作流`，跳过；否则将 `references/claude-md-template.md` 调整项目 scope 示例后追加到末尾。
 
 ### 3. 交付
 

@@ -62,7 +62,7 @@ def _patch_client(monkeypatch):
     return fake
 
 
-# --- /tmp safety net -------------------------------------------------------
+# --- document file validation ---------------------------------------------
 
 
 def test_read_temp_markdown_rejects_relative_path():
@@ -70,21 +70,17 @@ def test_read_temp_markdown_rejects_relative_path():
         server._read_temp_markdown("plan.md")
 
 
-def test_read_temp_markdown_rejects_outside_tmp(tmp_path):
-    outside = tmp_path / "plan.md"
-    outside.write_text("nope", encoding="utf-8")
-    with pytest.raises(ToolError):
-        server._read_temp_markdown(str(outside))
+def test_read_temp_markdown_accepts_absolute_file_outside_tmp(tmp_path):
+    target = tmp_path / "plan.md"
+    target.write_text("hello", encoding="utf-8")
+    assert server._read_temp_markdown(str(target)) == "hello"
 
 
-def test_read_temp_markdown_rejects_non_md():
-    target = Path("/tmp/devtask-ct-test.txt")
+def test_read_temp_markdown_rejects_non_md(tmp_path):
+    target = tmp_path / "plan.txt"
     target.write_text("nope", encoding="utf-8")
-    try:
-        with pytest.raises(ToolError):
-            server._read_temp_markdown(str(target))
-    finally:
-        target.unlink(missing_ok=True)
+    with pytest.raises(ToolError):
+        server._read_temp_markdown(str(target))
 
 
 def test_read_temp_markdown_rejects_oversize():

@@ -6,13 +6,9 @@ argument-hint: [task slug to review, e.g. task-N]
 
 # devtask-review
 
-**关键词：review / verify。** 把任务从"自称完成"变成"可被证成的完成"——验收条件表 + 四视角清理审查 + 正确性审查，可修的当场修，不能修的显式 skip。
+把任务从“自称完成”变成可被证成的完成：先验收，再做轻量清理审查，最后报告剩余问题。
 
-只读验证 + 轻量清理修复；不做大范围重构。
-
-v3：只读 `get_task(slug, view="full")`，从 `detail` 里解析 Task Document
-章节。视图只有 `summary`（结构化字段）和 `full`（含完整 detail）两种。
-子任务检查项从 `## Acceptance Criteria` 的 `- [ ]` / `- [x]` 解析。
+遵循 `../references/task-contract.md`；验收需要正文时使用 `get_task(slug, view="full")`，子任务用 `list_children` 获取摘要，必要时再按需读取 full。
 
 ## 流程
 
@@ -29,8 +25,7 @@ get_task(slug, view="full")
 
 ### 2. 验收条件验证（只读）
 
-解析 `## Acceptance Criteria` 章节，逐条 `- [ ]`（未勾）`- [x]`（已勾）检查。
-空则告知用户无可验证内容但仍继续后续视角。
+解析 `## Acceptance Criteria` 章节。空则记录“无可验证内容”，但继续后续视角。
 
 分类验证方式：
 
@@ -44,9 +39,7 @@ get_task(slug, view="full")
 
 按 `## Context Pointers` 章节里的 `path:line` 找到被改动的代码。**改动范围不明时跳过本节并在报告里注明**。
 
-沿四个视角各派一个审查视角并行跑（单消息多 Agent 并发）。每个视角返回 `file:line` + 一句话 `summary` + 代价 + 具体修法。
-
-详见 `references/review-perspectives.md`。每个视角独立判断；每个 finding 必须带 `file:line` + 改法。**小改动合并为单 Agent**，避免为用而用。
+按 `references/review-perspectives.md` 并行运行四个视角；小改动合并为单 Agent。每个 finding 必须带 `file:line`、摘要、代价和具体修法。
 
 ### 4. 正确性 + 安全审查
 
@@ -71,7 +64,7 @@ get_task(slug, view="full")
 
 正确性/安全类 finding **永远不自动修**，只在报告里给建议。
 
-需要把决策固化回 spec 时用 `update_task(slug, detail=...)` 更新 Decisions 章节。
+需要固化决策时用 `update_task(slug, detail=...)` 更新 `Decisions`；不要只写本地文件。
 
 ### 6. 状态修正
 
@@ -83,8 +76,8 @@ parent：子任务 AC 全部 ✅ + 自身 AC 全部 ✅ → `update_task(slugs=[
 
 ## Rules
 
-- **正确性/安全永不自动改** — 单列表报告，由用户决策
-- **改动范围不明时跳过清理节** — 不要凭记忆去猜 diff
-- **显式 skip > 默默跳过** — 每个不修的 finding 必有一句话 reason
-- **Parent 递归** — 子任务全部 ✅ + 自身 AC 全部 ✅ 才翻 parent
-- **只用 full 视图** — 视图只有 `summary` / `full`；验收需要 detail 全文时用 `full`
+- **正确性/安全永不自动改** — 单列报告，由用户决策
+- **范围不明时跳过清理** — 不要猜 diff
+- **显式 skip** — 每个不修的 finding 都写一句原因
+- **Parent 递归** — 子任务和自身 AC 全通过才完成 parent
+- **按需读 full** — 验收和执行需要正文时再读 full
