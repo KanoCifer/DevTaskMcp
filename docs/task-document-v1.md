@@ -1,23 +1,11 @@
 # Task Document v1
 
-A Task Document is a UTF-8 Markdown file with a YAML front matter
-block. It is the only long-text source of truth for `devtask-mcp` v3.
+A Task Document is the long-text convention for `devtask-mcp` v3:
+structured fields would live in YAML front matter, and all long text
+goes in a single `detail` Markdown body passed inline to
+`create_task` / `update_task`.
 
 ```
----
-schema: devtask/v1
-title: "..."             # required
-task_type: "..."         # required, Chinese literal
-priority: "..."          # required, Chinese literal
-scope: "..."             # required, "<layer>-<tech>"
-kind: subtask            # optional, "spec" or "subtask"
-for_agent: true          # optional, default true
-parent_slug: "..."       # optional, required if slug is set
-slug: "task-xxx"         # optional, subtask-only; must accompany parent_slug
-blocked_by: ["..."]      # optional
-due_date: "2026-09-30"   # optional, ISO 8601
----
-
 ## Goal
 
 Short paragraph of what this task is for.
@@ -49,31 +37,18 @@ Step-by-step implementation plan.
 - What is explicitly not part of this task
 ```
 
+Structured fields (title, type, priority, scope, kind, parent_slug,
+blocked_by, due_date, …) are passed as inline parameters — never in
+the Markdown body.
+
 ## Rules
 
-- The front matter is parsed with PyYAML (`yaml.safe_load`) and validated
-  strictly (mapping shape, required fields, Chinese enum literals). The
-  same convention is used by skill `SKILL.md` files, so the model can
-  reuse one mental model.
-- Optional `slug` requests a client-specified slug (must match `task-xxx`,
-  no whitespace or `/`). It is **only valid for subtasks** and requires
-  `parent_slug` to also be set; specs always get a server-assigned slug.
-- Only the front matter is enforced. The Markdown body is a convention,
-  not a requirement: `Goal`, `Plan`, `Acceptance Criteria`, etc. are
-  parsed when present but never required, so free-form detail is
-  accepted.
-- `Acceptance Criteria` items conventionally use `- [ ]` syntax, but the
-  parser never rejects other formats.
+- Slug is always server-assigned. Use `parent_slug` to link a subtask
+  to its spec.
+- The body structure is a convention, not a requirement: `Goal`,
+  `Plan`, `Acceptance Criteria`, etc. are recognized when present but
+  never required, so free-form detail is accepted.
+- `Acceptance Criteria` items conventionally use `- [ ]` syntax.
 - `Context Pointers` items conventionally match `path:line`.
-- Sections are matched case-insensitively on the heading.
-- Unknown sections are kept verbatim and surfaced in `full` views.
-- Repeated sections are allowed; the last occurrence wins.
-- `detail` from a Task Document becomes the task's `detail` after the
-  front matter is stripped.
-- Front-matter fields override the API body's structured columns; if a
-  field is missing from both the front matter and the API call, it is an
-  error.
-- Maximum size: 2 MB, same as the legacy `detail_file` cap.
-- The file (`document_file`) must live under `/tmp` (the MCP server
-  enforces this for security).  `create_task(.., document_file=...)`
-  reads the file and parses its YAML front matter automatically.
+- Sections are matched case-insensitively on the heading; repeated
+  sections are allowed with the last occurrence winning.

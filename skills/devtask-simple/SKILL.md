@@ -33,15 +33,15 @@ argument-hint: [Brief description of the small task, bug fix, or improvement]
 
 按模式处理，方案确定后立即落库，不拆分步骤：
 
-**Lightweight：** 列出文件路径 + 每文件改动概要。推荐方案默认采用。3+ 种真正不同路径时让用户选。→ 用 `Write` 写一份 Task Document 到 `/tmp/devtask-simple-<短名称>.md`（YAML front matter + 固定章节）→ `create_task(document_file=...)` → MCP 完成后只回报 slug。
+**Lightweight：** 列出文件路径 + 每文件改动概要。推荐方案默认采用。3+ 种真正不同路径时让用户选。→ 直接 `create_task(title=..., task_type=..., priority=..., scope=..., detail="## Goal\n...\n\n## Acceptance Criteria\n- [ ] ...")` 落库 → MCP 完成后只回报 slug。
 
 **Triage：** 每项分 Bug / Already works / Accepted / Cosmetic / Out of scope。展示分类表确认 → Accepted 各项逐个调 `create_task(title=..., task_type=..., priority=..., scope=..., detail="## Goal...")` 创建。不要合并成一个 task。
 
-**Evaluation：** 输出 Keep / Kill / Pivot（第一行结论，不要开场白，三条理由）。Kill 不落库；Pivot 落库新方向；Keep 落库 task。Evaluation 模式落库也用 Task Document。
+**Evaluation：** 输出 Keep / Kill / Pivot（第一行结论，不要开场白，三条理由）。Kill 不落库；Pivot 落库新方向；Keep 落库 task。
 
-### Task Document 模板
+### Task Document 结构
 
-使用 `references/task-document-template.md`。`Goal` 和 `Acceptance Criteria` 必填；AC 推荐 `- [ ]` 格式。`Context Pointers` 使用 `path:line` 格式。`document_file` 仅要求绝对路径、`.md`、存在、最大 2 MiB、UTF-8，不要求位于 `/tmp`。
+`detail` 使用固定章节：`Goal` 和 `Acceptance Criteria` 必填；AC 推荐 `- [ ]` 格式。`Context Pointers` 使用 `path:line` 格式。
 
 ## Rules
 

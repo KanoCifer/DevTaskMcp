@@ -17,9 +17,9 @@ Tools
   the v3 view layer; default ``summary``)
 - list_children — GET /dev-tasks?kind=subtask filtered by parent_slug
   (always returns summary records)
-- create_task — POST /dev-tasks, accepts inline params or
-  ``document_file`` for YAML front matter; optional ``slug`` is
-  subtask-only (requires ``parent_slug``) (replaces old separate tools)
+- create_task — POST /dev-tasks with inline params; long text goes in
+  ``detail``; slug is always server-assigned, use ``parent_slug``
+  to link a subtask
 - update_task — PATCH /dev-tasks/:slug (state + detail);
   batch updates via ``slugs=[...]`` (replaces ``complete_task``)
 

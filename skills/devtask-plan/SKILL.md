@@ -7,7 +7,7 @@ argument-hint:
 
 # devtask-plan
 
-把模糊需求变成 **spec** 和一组可执行的子任务。遵循 `../references/task-contract.md`：spec 用 `create_task(document_file=<path>)` 落库，subtask 用内联 `create_task` 创建。
+把模糊需求变成 **spec** 和一组可执行的子任务。遵循 `../references/task-contract.md`：spec 和 subtask 都用内联 `create_task` 创建。
 ## 流程
 
 ### 1. 探索
@@ -26,21 +26,22 @@ argument-hint:
 
 能从代码查到的事实不问；提问必须具体到另一个工程师可以据此实现。
 
-### 3. 写 spec 的 Task Document
-
-用 `Write` 写一份 spec 的 Task Document 到 `/tmp/devtask-plan-<短名称>.md`，使用 `references/spec-template.md`。
-
-### 4. 落库 spec
-
-通过文件路径创建spec
+### 3. 落库 spec
 
 ```text
-create_task(document_file="/tmp/devtask-plan-<短名称>.md")
+create_task(
+    title="<spec 标题>",
+    task_type="功能需求",      # 或 优化 / 问题 / 技术债
+    priority="P1 高",
+    scope="Backend-Python",
+    kind="spec",
+    detail="## Goal\n...\n\n## Plan\n...\n\n## Acceptance Criteria\n- [ ] ..."
+)
 ```
 
 记下返回的 `slug`（即 spec slug）。
 
-### 5. 逐个创建 subtask
+### 4. 逐个创建 subtask
 
 ```text
 create_task(
@@ -50,7 +51,6 @@ create_task(
     scope="Backend-Python",
     kind="subtask",
     parent_slug="<spec-slug>",   # 上一步返回的 slug
-    slug="task-42",              # 可选，仅子任务，必须配合 parent_slug
     blocked_by=["task-N1"],      # 同层依赖（可选）
     detail="## Goal\n...\n\n## Plan\n...\n\n## Acceptance Criteria\n- [ ] ..."
 )
@@ -58,7 +58,7 @@ create_task(
 
 每个 subtask 只放增量内容，重复的不抄父。
 
-### 6. 交付
+### 5. 交付
 
 ```text
 Spec: task-N (kind: spec)

@@ -1,11 +1,6 @@
 """End-to-end MCP server tests against a fake DevTaskClient.
 
-The v3 tools accept /tmp paths to Task Document files; they route those
-through :func:`server._read_temp_markdown` so the ``/tmp`` boundary is
-enforced before the parsers see any text.
-
 Tests in this module assert:
-- the ``/tmp`` reader rejects everything outside the boundary;
 - the legacy long-text parameters are not surfaced on any tool schema;
 - the v3 tool bodies wire correctly to the API client.
 """
@@ -60,46 +55,6 @@ def _patch_client(monkeypatch):
     fake = _FakeClient()
     monkeypatch.setattr(server, "client", fake)
     return fake
-
-
-# --- document file validation ---------------------------------------------
-
-
-def test_read_temp_markdown_rejects_relative_path():
-    with pytest.raises(ToolError):
-        server._read_temp_markdown("plan.md")
-
-
-def test_read_temp_markdown_accepts_absolute_file_outside_tmp(tmp_path):
-    target = tmp_path / "plan.md"
-    target.write_text("hello", encoding="utf-8")
-    assert server._read_temp_markdown(str(target)) == "hello"
-
-
-def test_read_temp_markdown_rejects_non_md(tmp_path):
-    target = tmp_path / "plan.txt"
-    target.write_text("nope", encoding="utf-8")
-    with pytest.raises(ToolError):
-        server._read_temp_markdown(str(target))
-
-
-def test_read_temp_markdown_rejects_oversize():
-    huge = Path("/tmp/devtask-ct-huge.md")
-    huge.write_text("a" * (server.MAX_MARKDOWN_FILE_BYTES + 1), encoding="utf-8")
-    try:
-        with pytest.raises(ToolError):
-            server._read_temp_markdown(str(huge))
-    finally:
-        huge.unlink(missing_ok=True)
-
-
-def test_read_temp_markdown_accepts_tmp_file():
-    target = Path("/tmp/devtask-ct-ok.md")
-    target.write_text("hello", encoding="utf-8")
-    try:
-        assert server._read_temp_markdown(str(target)) == "hello"
-    finally:
-        target.unlink(missing_ok=True)
 
 
 # --- tool signatures --------------------------------------------------------
@@ -181,53 +136,6 @@ def test_create_task_omits_detail_when_not_given(_patch_client):
     assert "detail" not in _patch_client.calls[0][1]
 
 
-def test_create_task_sends_client_slug(_patch_client):
-    payload = json.loads(
-        asyncio.run(
-            server.create_task(
-                title="Slim",
-                task_type="优化",
-                priority="P1 高",
-                scope="后端-Python",
-                slug="task-42",
-                parent_slug="task-1",
-            )
-        )
-    )
-    assert payload == {"slug": "task-1", "title": "ok"}
-    method, body = _patch_client.calls[0]
-    assert method == "create_task"
-    assert body["slug"] == "task-42"
-    assert body["parent_slug"] == "task-1"
-
-
-def test_create_task_rejects_slug_without_parent(_patch_client):
-    with pytest.raises(ToolError, match="parent_slug"):
-        asyncio.run(
-            server.create_task(
-                title="Top-level",
-                task_type="优化",
-                priority="P1 高",
-                scope="后端-Python",
-                slug="task-99",
-            )
-        )
-
-
-def test_create_task_rejects_bad_slug(_patch_client):
-    with pytest.raises(ToolError, match="task-xxx"):
-        asyncio.run(
-            server.create_task(
-                title="Bad",
-                task_type="优化",
-                priority="P1 高",
-                scope="后端-Python",
-                slug="weird slug",
-                parent_slug="task-1",
-            )
-        )
-
-
 def test_update_task_sends_status(_patch_client):
     payload = json.loads(
         asyncio.run(server.update_task(slug="task-1", status="进行中"))
@@ -250,54 +158,6 @@ def test_update_task_sends_detail(_patch_client):
     method, body = _patch_client.calls[0]
     assert method == "update_task"
     assert "## Goal" in body["detail"]
-
-
-def test_create_task_via_document_file_sends_compiled_body(_patch_client):
-    doc_path = Path("/tmp/devtask-ct-create.md")
-    doc_path.write_text(
-        "---\n"
-        'title: "From doc"\n'
-        'task_type: "优化"\n'
-        'priority: "P1 高"\n'
-        'scope: "后端-Python"\n'
-        'kind: "subtask"\n'
-        'slug: "task-77"\n'
-        'parent_slug: "task-1"\n'
-        "for_agent: true\n"
-        "---\n\n"
-        "## Goal\n\nDo the thing.\n\n"
-        "## Acceptance Criteria\n\n- [ ] it works\n",
-        encoding="utf-8",
-    )
-    try:
-        payload = json.loads(
-            asyncio.run(server.create_task(document_file=str(doc_path)))
-        )
-        assert payload == {"slug": "task-1", "title": "ok"}
-    finally:
-        doc_path.unlink(missing_ok=True)
-
-    method, body = _patch_client.calls[0]
-    assert method == "create_task"
-    assert body["title"] == "From doc"
-    assert body["type"] == "优化"
-    assert body["kind"] == "subtask"
-    assert body["slug"] == "task-77"
-    assert body["parent_slug"] == "task-1"
-    assert body["for_agent"] is True
-    assert "## Goal" in body["detail"]
-    for legacy in (
-        "description",
-        "acceptance_criteria",
-        "constraints",
-        "context_pointers",
-    ):
-        assert legacy not in body
-
-
-def test_create_task_rejects_invalid_document_file(_patch_client):
-    with pytest.raises(ToolError):
-        asyncio.run(server.create_task(document_file="/etc/passwd"))
 
 
 def test_update_task_bulk_completes(_patch_client):

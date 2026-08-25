@@ -192,7 +192,7 @@ Context Pointers（外加 Decisions / Out of Scope）。其它结构化字段保
 
 | 工具                               | 用途                                                    |
 | ---------------------------------- | ------------------------------------------------------- |
-| `create_task`                      | 内联参数或 `document_file` 创建任务（取代旧的两个工具）   |
+| `create_task`                      | 内联参数创建任务，长文放 `detail`（取代旧的两个工具）   |
 | `update_task`                      | 修改状态字段 + 可选 detail 正文；`slugs=[]` 批量完成     |
 | `get_task(slug, view=...)`         | `summary` / `full`                                        |
 | `list_children`                    | 永远返回 summary 记录                                    |

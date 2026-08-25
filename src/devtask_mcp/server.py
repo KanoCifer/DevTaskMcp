@@ -8,7 +8,6 @@ import sys
 from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
@@ -17,7 +16,6 @@ from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
 from .client import DevTaskAPIError, DevTaskClient, DevTaskError
 from .models import TaskKind, TaskPriority, TaskStatus, TaskType
-from .task_document import SLUG_RE, DocumentError, parse_task_document
 from .views import VIEWS, ViewError, render_view
 
 logger = logging.getLogger("devtask-mcp")
@@ -87,43 +85,6 @@ def _handle_errors(func: Callable) -> Callable:
 
 
 # -------------------------------------------------------------------------- #
-# Shared helpers
-# -------------------------------------------------------------------------- #
-
-MAX_MARKDOWN_FILE_BYTES = 2 * 1024 * 1024
-
-
-def _read_temp_markdown(file_path: str) -> str:
-    """Read a Markdown document from an absolute local path.
-
-    File-backed text avoids sending the same long plan once to the model and
-    again in an MCP argument.
-    """
-    candidate = Path(file_path)
-    if not candidate.is_absolute():
-        raise ToolError("document_file 必须是绝对路径")
-
-    try:
-        resolved = candidate.resolve(strict=True)
-    except (FileNotFoundError, OSError) as exc:
-        raise ToolError("document_file 必须指向存在的 Markdown 文件") from exc
-
-    if resolved.suffix.lower() != ".md" or not resolved.is_file():
-        raise ToolError("document_file 必须指向 .md 文件")
-
-    try:
-        if resolved.stat().st_size > MAX_MARKDOWN_FILE_BYTES:
-            raise ToolError(
-                f"document_file 不能超过 {MAX_MARKDOWN_FILE_BYTES // 1024 // 1024} MB"
-            )
-        return resolved.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise ToolError("document_file 必须是 UTF-8 编码的 Markdown 文件") from exc
-    except OSError as exc:
-        raise ToolError(f"无法读取 document_file: {exc}") from exc
-
-
-# -------------------------------------------------------------------------- #
 # Tool: get_task
 # -------------------------------------------------------------------------- #
 
@@ -167,65 +128,44 @@ async def create_task(
     scope: str | None = None,
     kind: TaskKind | None = None,
     parent_slug: str | None = None,
-    slug: str | None = None,
     for_agent: bool = False,
     blocked_by: list[str] | None = None,
     due_date: str | None = None,
     detail: str | None = None,
-    document_file: str | None = None,
 ) -> str:
-    """Create a task from inline params, or from a Task Document file (document_file takes precedence).
+    """Create a task from inline params.
 
-    slug: optional client-specified slug (task-xxx) for a subtask; requires parent_slug and defaults to server-assigned otherwise.
+    Slug is always server-assigned; use parent_slug to link a subtask to its spec.
     """
-    if slug is not None and parent_slug is None:
-        raise ToolError("slug 只能用于创建子任务（需同时提供 parent_slug）")
-    if document_file is not None:
-        text = _read_temp_markdown(document_file)
-        try:
-            document = parse_task_document(text)
-        except DocumentError as exc:
-            raise ToolError(f"Task Document 解析失败: {exc}") from exc
-        body = document.to_body()
-    else:
-        if title is None or task_type is None or priority is None or scope is None:
-            missing = [
-                name
-                for name, val in [
-                    ("title", title),
-                    ("task_type", task_type),
-                    ("priority", priority),
-                    ("scope", scope),
-                ]
-                if val is None
+    if title is None or task_type is None or priority is None or scope is None:
+        missing = [
+            name
+            for name, val in [
+                ("title", title),
+                ("task_type", task_type),
+                ("priority", priority),
+                ("scope", scope),
             ]
-            raise ToolError(
-                f"缺少必填参数: {', '.join(missing)}（使用 document_file 时除外）"
-            )
-        body = {
-            "title": title,
-            "type": task_type,
-            "priority": priority,
-            "scope": scope,
-            "for_agent": for_agent,
-        }
-        if slug is not None:
-            body["slug"] = slug
-        if kind is not None:
-            body["kind"] = kind
-        if parent_slug is not None:
-            body["parent_slug"] = parent_slug
-        if blocked_by is not None:
-            body["blocked_by"] = blocked_by
-        if due_date is not None:
-            body["due_date"] = due_date
-        if detail is not None:
-            body["detail"] = detail
-
-    if "slug" in body and (
-        not isinstance(body["slug"], str) or not SLUG_RE.match(body["slug"])
-    ):
-        raise ToolError("slug 必须是 task-xxx 形式（xxx 不能含空白或 /）")
+            if val is None
+        ]
+        raise ToolError(f"缺少必填参数: {', '.join(missing)}")
+    body = {
+        "title": title,
+        "type": task_type,
+        "priority": priority,
+        "scope": scope,
+        "for_agent": for_agent,
+    }
+    if kind is not None:
+        body["kind"] = kind
+    if parent_slug is not None:
+        body["parent_slug"] = parent_slug
+    if blocked_by is not None:
+        body["blocked_by"] = blocked_by
+    if due_date is not None:
+        body["due_date"] = due_date
+    if detail is not None:
+        body["detail"] = detail
 
     raw = await client.create_task(body)
     return json.dumps(

@@ -2,7 +2,7 @@
 
 ## Project
 
-DevTaskMcp is an MCP server (Python, FastMCP) that wraps the kanocifer.chat dev-task API as Task Document v3 tools for AI agents. It implements a "frontier" pattern — agents claim and execute the next ready task from a kanban board. The v3 protocol collapses all long-form text into a single `detail` Markdown body and uses YAML front matter (same convention as skill `SKILL.md`) for structured fields.
+DevTaskMcp is an MCP server (Python, FastMCP) that wraps the kanocifer.chat dev-task API as Task Document v3 tools for AI agents. It implements a "frontier" pattern — agents claim and execute the next ready task from a kanban board. The v3 protocol collapses all long-form text into a single `detail` Markdown body; structured fields are passed as inline tool parameters.
 
 ## Commands
 
@@ -63,8 +63,8 @@ Skills live in the repo-root `skills/` directory (`skills/devtask-plan/`, `skill
 
 ## v3 architecture (Task Document)
 
-- All long text lives in `detail` (a Task Document). The MCP server parses `---`-delimited YAML front matter for structured fields (same convention as skill `SKILL.md`) and renders the rest as a fixed set of Markdown sections (`Goal`, `Plan`, `Acceptance Criteria`, `Constraints`, `Context Pointers`, `Decisions`, `Out of Scope`).
-- `create_task` / `update_task` are the core write tools. Use `create_task(document_file=...)` for spec/simple tasks (file-backed YAML front matter), `create_task` with inline params for subtasks, and `update_task` for status or detail edits.
+- All long text lives in `detail` (a Task Document), structured as fixed Markdown sections (`Goal`, `Plan`, `Acceptance Criteria`, `Constraints`, `Context Pointers`, `Decisions`, `Out of Scope`). Structured fields (title, type, priority, scope, kind, parent_slug, …) are inline tool parameters.
+- `create_task` / `update_task` are the core write tools. `create_task` takes only inline params; slug is always server-assigned — use `parent_slug` to link a subtask to its spec.
 - `get_task(slug, view=...)` supports two views: `summary` (structured fields only) and `full` (raw task incl. detail). The default is `summary` so the agent never accidentally pulls the full body into context.
 - `list_children` always returns summary records. Children are fetched with `full` only when needed.
 - `update_task` covers state + detail edits. For full Task Document replacement pass `detail=`; for status changes pass `status=`.
