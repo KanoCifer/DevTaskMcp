@@ -51,7 +51,7 @@ Use the slug (`task-N`) as the human-facing ID in conversation, UI, and MCP cont
 
 ## Skills location
 
-Skills live in the repo-root `skills/` directory (`skills/devtask-plan/`, `skills/doit/`), **not** `.claude/skills/`. The README's structure diagram is stale on this point. Symlink to `~/.claude/skills/` for global use.
+Skills live in the repo-root `skills/` directory (`skills/devtask/`, `skills/doit/`), **not** `.claude/skills/`. The README's structure diagram is stale on this point. Symlink to `~/.claude/skills/` for global use.
 
 ## Architectural notes
 

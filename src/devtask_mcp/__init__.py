@@ -7,8 +7,8 @@ Every tool accepts the ``slug`` form (``task-N``) as the human-facing
 identifier.
 
 The MCP surface is intentionally narrow.  Workflow orchestration lives
-in skills (``devtask-doit``, ``devtask-plan``, ``devtask-simple``,
-``devtask-review``, …) — agents should call those skills rather than
+in skills (``devtask-doit``, ``devtask``, ``devtask-review``,
+…) — agents should call those skills rather than
 chaining MCP tools directly.
 
 Tools

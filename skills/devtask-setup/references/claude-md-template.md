@@ -4,7 +4,7 @@
 
 ### 工作流
 
-需求 → /devtask:devtask-plan（复杂）或 /devtask:devtask-simple（简单）
+需求 → /devtask:devtask（自动按规模路由：单点修复 / 批量分类 / spec+subtasks）
 → 落库为 spec + 子任务树
 → /devtask:devtask-doit task-N（执行指定任务）
 → /devtask:devtask-review（验收条件 + 代码审查）
@@ -14,11 +14,8 @@
 
 | 场景                                 | 技能                           |
 | ------------------------------------ | ------------------------------ |
-| 预计改动 >5 文件、跨层、需要拆子任务 | `/devtask:devtask-plan`        |
-| 预计改动 ≤5 文件、单意图             | `/devtask:devtask-simple`      |
 | 执行已落库的任务                     | `/devtask:devtask-doit task-N` |
 | 验收已完成任务                       | `/devtask:devtask-review`      |
-| 探讨方案选型                         | `/devtask:devtask-grill`       |
 
 ### 引用规范
 

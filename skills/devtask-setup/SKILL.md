@@ -34,7 +34,7 @@ disable-model-invocation: true
 引导: 已写入 CLAUDE.md（或已存在）
 任务: <已创建 task-N / 暂未创建>
 
-下一步: /devtask:devtask-plan 或 /devtask:devtask-simple 创建第一个任务
+下一步: /devtask:devtask 创建第一个任务
 ```
 
 ## Rules

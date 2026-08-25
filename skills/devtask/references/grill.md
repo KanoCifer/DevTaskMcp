@@ -1,9 +1,4 @@
----
-name: devtask-grill
-description: "A relentless interview that asks every frontier question at once, round by round."
----
-
-# devtask-grill
+# Grilling — frontier 访谈协议
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
 

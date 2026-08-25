@@ -7,9 +7,7 @@ Agent 原生的 dev 任务看板 — 把需求调研成规格清晰的任务，�
 | 技能               | 用途                                                | 触发                                                     |
 | ------------------ | --------------------------------------------------- | -------------------------------------------------------- |
 | `devtask-setup`    | 初始化项目：检查环境、写 CLAUDE.md 引导、可选落库    | 首次引入 devtask / "初始化 devtask" / "setup devtask"    |
-| `devtask-grill`    | 正式规划前探讨方案选型、权衡和风险                  | 用户说"这个需求有什么方案" / "探讨一下几种方案优劣"      |
-| `devtask-plan`     | 调研需求、访谈式产出规格、创建任务                  | 用户说"我想做个…" / "加个功能" / "修个 bug"              |
-| `devtask-simple`   | 简单任务快速方案→落库一段流                         | 用户说"修个 X 的 bug" / "加个 Y 按钮" / 小优化          |
+| `devtask`          | 需求 → 落库任务，全规模路由：单点修复 / 批量分类 / Keep-Kill-Pivot / spec+subtasks | 用户说"我想做个…" / "加个功能" / "修个 bug" / "plan this out" |
 | `devtask-doit`     | 端到端执行任务，自检验收条件，verify 通过后标记完成 | 用户说"做 task-N" / "执行任务" / "work on the next task" |
 | `devtask-review`   | 验收条件 + 四视角清理审查 + 正确性审查，能修就修 | 用户说"review task-N" / "verify task-N" / "验收 task-N" |
 
@@ -57,18 +55,14 @@ claude --plugin-dir /path/to/DevTaskMcp
 # 2. 链接技能目录
 # 作为 user-level 技能（全局可用）
 ln -s /path/to/DevTaskMcp/skills/devtask-setup ~/.claude/skills/devtask-setup
-ln -s /path/to/DevTaskMcp/skills/devtask-grill ~/.claude/skills/devtask-grill
-ln -s /path/to/DevTaskMcp/skills/devtask-plan ~/.claude/skills/devtask-plan
-ln -s /path/to/DevTaskMcp/skills/devtask-simple ~/.claude/skills/devtask-simple
+ln -s /path/to/DevTaskMcp/skills/devtask ~/.claude/skills/devtask
 ln -s /path/to/DevTaskMcp/skills/devtask-doit ~/.claude/skills/devtask-doit
 ln -s /path/to/DevTaskMcp/skills/devtask-review ~/.claude/skills/devtask-review
 
 # 或作为 project-level 技能（放在项目 .claude/skills/ 下）
 mkdir -p .claude/skills
 ln -s /path/to/DevTaskMcp/skills/devtask-setup .claude/skills/devtask-setup
-ln -s /path/to/DevTaskMcp/skills/devtask-grill .claude/skills/devtask-grill
-ln -s /path/to/DevTaskMcp/skills/devtask-plan .claude/skills/devtask-plan
-ln -s /path/to/DevTaskMcp/skills/devtask-simple .claude/skills/devtask-simple
+ln -s /path/to/DevTaskMcp/skills/devtask .claude/skills/devtask
 ln -s /path/to/DevTaskMcp/skills/devtask-doit .claude/skills/devtask-doit
 ln -s /path/to/DevTaskMcp/skills/devtask-review .claude/skills/devtask-review
 ```
@@ -149,9 +143,7 @@ cp .env.example .env
 
 ```
 /devtask:devtask-setup                   # 初始化：检查环境 + 写 CLAUDE.md 引导
-/devtask:devtask-grill                   # 探讨方案选型与权衡
-/devtask:devtask-plan                    # 调研需求，创建任务
-/devtask:devtask-simple                  # 简单任务快速落库
+/devtask:devtask                         # 需求 → 落库任务（自动按规模路由）
 /devtask:devtask-doit                    # 领取 frontier 最前排任务执行
 /devtask:devtask-doit task-42            # 执行指定 slug 的任务
 /devtask:devtask-review task-42          # 验收条件 + 四视角代码审查
@@ -166,12 +158,8 @@ cp .env.example .env
 需求描述
     │
     ▼
-/devtask:devtask-grill
-    │  探讨方案 → 选定方向
-    │  (方案明确后进入 plan 或 simple)
-    ▼
-/devtask:devtask-plan / /devtask:devtask-simple
-    │  访谈式调研 → 产出规格 → 创建任务
+/devtask:devtask
+    │  按规模路由：单点修复 / 批量分类 / spec+subtasks → 创建任务
     ▼
 /devtask:devtask-doit [task-N]
     │  端到端执行 → 自检验收条件 → /devtask:devtask-review
@@ -235,9 +223,8 @@ DevTaskMcp/
 ├── .mcp.json                    # MCP server 定义（plugin 自动加载）
 ├── skills/
 │   ├── devtask-setup/SKILL.md   # 初始化：检查环境 + 写 CLAUDE.md 引导
-│   ├── devtask-grill/SKILL.md   # 探讨方案选型与权衡
-│   ├── devtask-plan/SKILL.md    # 需求 → 规格 → 创建
-│   ├── devtask-simple/SKILL.md  # 简单任务快速落库
+│   ├── devtask/references/grill.md  # frontier 访谈协议（渐进披露）
+│   ├── devtask/SKILL.md         # 需求 → 落库任务（全规模路由）
 │   ├── devtask-doit/SKILL.md    # 端到端执行 + verify 门控
 │   └── devtask-review/SKILL.md  # 验收条件 + 四视角清理审查 + 正确性审查
 ├── src/devtask_mcp/             # MCP server Python 包
